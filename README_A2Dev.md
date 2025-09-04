@@ -18,6 +18,7 @@ Optimized for Codex
 - Minimal deps: avoids network calls by default; suitable for local/offline development.
 - Handoff: after assessment, the CLI prints “Handoff to Codex” with suggested next chat commands (e.g., `@pm develop <id>`). Use `tools/codex_router_example.py` to route chat.
 - Role persistence: the example router reads `.a2dev/state.json` and forwards un‑prefixed messages to the active role for a smooth dialogue (e.g., type `@analyst`, then `assess fresh`).
+ - Integration guide: see `docs/integrations/Codex.md` for tool registration and system prompt.
 
 Quick Start (Node-first)
 - One-liner: `npx a2dev install && a2dev quickstart` (opens the menu)
@@ -33,6 +34,7 @@ Readiness
   - Start Fresh: create PRD and assess (Greenfield)
   - I come prepared: assess an existing PRD
   - I already started: assess an existing codebase (Brownfield) — includes inventory + audit
+ - Dry-run mode: add `--dry-run` to any command (e.g., `a2dev --dry-run pm story 1`) to list planned writes and skip file changes.
 
 Python path (optional)
 - For environments without Node/npm, you can still run:

@@ -150,7 +150,10 @@ def _install_tools(missing: list[str]) -> None:
     for c in cmds:
         try:
             print("$", " ".join(c))
-            subprocess.run(c, check=False)
+            if os.getenv("A2DEV_DRY_RUN") == "1":
+                print("[DRY-RUN] Would run:", " ".join(c))
+            else:
+                subprocess.run(c, check=False)
         except Exception as e:
             print(f"- Command failed: {' '.join(c)} — {e}")
 
@@ -164,6 +167,42 @@ def _install_missing_tools_interactive(dest: Path) -> None:
     # Re-check
     remaining = _detect_missing_tools()
     print(f"- Remaining missing tools: {', '.join(remaining) if remaining else 'none'}")
+
+
+def _enable_dry_run_monkey_patches() -> None:
+    # Monkey-patch Path and shutil write operations to no-op with logs
+    from pathlib import Path as _Path
+    import shutil as _shutil
+    import builtins as _bi
+    if getattr(_enable_dry_run_monkey_patches, "_enabled", False):
+        return
+    _enable_dry_run_monkey_patches._enabled = True  # type: ignore[attr-defined]
+
+    def _wr_write_text(self, text, *args, **kwargs):  # type: ignore
+        print(f"[DRY-RUN] Would write file: {self}")
+        return len(text)
+
+    def _wr_mkdir(self, *args, **kwargs):  # type: ignore
+        print(f"[DRY-RUN] Would create dir: {self}")
+        return None
+
+    def _wr_copy2(src, dst, *args, **kwargs):
+        print(f"[DRY-RUN] Would copy: {src} -> {dst}")
+        return dst
+
+    def _wr_copytree(src, dst, *args, **kwargs):
+        print(f"[DRY-RUN] Would copy tree: {src} -> {dst}")
+        return dst
+
+    def _wr_chmod(path, mode, *args, **kwargs):
+        print(f"[DRY-RUN] Would chmod: {path}")
+        return None
+
+    _Path.write_text = _wr_write_text  # type: ignore
+    _Path.mkdir = _wr_mkdir  # type: ignore
+    _shutil.copy2 = _wr_copy2  # type: ignore
+    _shutil.copytree = _wr_copytree  # type: ignore
+    os.chmod = _wr_chmod  # type: ignore
 
 def _run_setup_menu(dest: Path) -> None:
     while True:
@@ -215,14 +254,22 @@ def _flow_start_fresh(dest: Path) -> None:
         name = input("Project name (default 'Project'): ").strip() or "Project"
     except EOFError:
         name = "Project"
-    prd = _ensure_prd(dest)
-    # Overwrite with a fresh template for clarity
-    try:
-        from .roles.analyst import AnalystRole
+    prd = dest / "docs" / "PRD.md"
+    from .roles.analyst import AnalystRole
+    if prd.exists():
+        try:
+            ans = input(f"PRD exists at {prd}. Overwrite with fresh template? (y/N) ").strip().lower()
+        except EOFError:
+            ans = "n"
+        if ans == "y":
+            prd.write_text(AnalystRole().prd_template(name))
+            print(f"- Overwrote PRD with fresh template: {prd}")
+        else:
+            print(f"- Keeping existing PRD: {prd}")
+    else:
+        prd.parent.mkdir(parents=True, exist_ok=True)
         prd.write_text(AnalystRole().prd_template(name))
-    except Exception:
-        pass
-    print(f"- Created PRD: {prd}")
+        print(f"- Created PRD: {prd}")
     try:
         cmd_plan(str(prd))
     except Exception as e:
@@ -663,6 +710,7 @@ def cmd_prepare_story(story_id: int) -> None:
 
 def main(argv: List[str] | None = None) -> None:
     parser = argparse.ArgumentParser("a2dev")
+    parser.add_argument("--dry-run", action="store_true", help="Print planned writes and skip modifying files")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_plan = sub.add_parser("plan", help="Generate backlog from PRD")
@@ -833,6 +881,11 @@ def main(argv: List[str] | None = None) -> None:
     p_smcycle.add_argument("--branch", action="store_true")
 
     args = parser.parse_args(argv)
+
+    # Enable dry-run if requested (monkey-patch core file ops)
+    if getattr(args, "dry_run", False):
+        os.environ["A2DEV_DRY_RUN"] = "1"
+        _enable_dry_run_monkey_patches()
     if args.cmd == "plan":
         cmd_plan(args.prd)
     elif args.cmd == "ux":

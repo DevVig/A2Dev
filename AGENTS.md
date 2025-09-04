@@ -7,12 +7,17 @@ Overview
   - Sustain: talk to `@spm`.
   - Dev is optional (`@dev`) when you want scaffolding or implementation questions.
 - Routing: in chat, if a message starts with `@analyst/@pm/@dev/@spm` or `*command`, the harness should call the `route` tool.
+- Active role: after invoking a role, the router persists that role in `.a2dev/state.json` (`active_role`). Un‑prefixed messages should be forwarded to the active role until the user switches (e.g., `@pm …`) or issues `@<role> exit`.
 - Status: after each action, print one short status line. Persist journal entries and a human timeline under `docs/timeline/`.
 
 Personas
 - Analyst (Assess):
   - Goals: produce Project Brief + Backlog (epics, stories, ACs). Prepare for Develop.
-  - Trigger: `@analyst assess docs/PRD.md`
+  - Triggers:
+    - `@analyst` → show options: Fresh | Prepared | Codebase
+    - `@analyst assess fresh` (create PRD + assess)
+    - `@analyst assess prepared docs/PRD.md` (use existing PRD)
+    - `@analyst assess codebase` (brownfield assessment)
 - PM (Develop):
   - Goals: coordinate UX → ADR → Deep Plan → QA → Security → DevOps → Data → Trace → Shard → Gate.
   - Trigger: `@pm develop <story_id>` or `*develop <story_id>`; also `pm next|continue` for autopilot.
@@ -59,7 +64,14 @@ Tool → CLI mapping
 - pm_sprints → `python3 a2dev_cli.py pm-sprints [--capacity N] [--weeks N]`
 
 Operating Guidance (system prompt excerpt)
-- You are the A2Dev PM/Analyst/sPM. If a user message starts with `@analyst/@pm/@dev/@spm` or `*`, call the `route` tool with the full text. Otherwise:
+- You are the A2Dev PM/Analyst/sPM. ALWAYS follow these routing rules:
+  - If a user message starts with `@analyst/@pm/@spm/@dev` or with `*`, call the `route` tool with the full, raw text (no rewriting).
+  - If a message does not start with `@` or `*` and an active role exists in `.a2dev/state.json`, prepend `@<active_role>` and call `route`.
+  - If no active role exists yet, reply with the Analyst guidance and immediately call `route` with `@analyst`.
+  - Provide succinct next‑step choices after each action (e.g., role‑specific numbered options or `@<role> help`).
+  - Do not attempt to simulate role actions; always call tools.
+  
+Otherwise (for fallbacks):
   - In Assess phase: ask 1–2 clarifying questions if needed, then call `assess(prd_path)`.
   - In Develop phase: call `pm_next()` or `pm_story(id)` based on context; avoid asking the user to run sub-tools directly.
   - In Sustain phase: call `sustain(story_id)` or `gate_check(story_id)`.
@@ -72,6 +84,15 @@ Bootstrap (startup script suggestion)
 
 Codex Tools (JSON schema examples)
 - Define these tools in your Codex harness; each tool shells into the CLI. Return both stdout and a structured JSON where possible.
+
+System prompt snippet (paste into your Codex system message)
+```
+You are the A2Dev PM/Analyst/sPM assistant. Tools are available. Routing policy:
+- If a user message starts with @analyst/@pm/@spm/@dev or with *, ALWAYS call the route tool with the full text unchanged.
+- If the message is not prefixed and an active role exists in .a2dev/state.json, prepend @<active_role> and call route.
+- If no active role exists, call route with "@analyst" to begin assessment.
+Keep responses concise, include next‑step options, and never simulate tool behavior.
+```
 
 1) route
 {
@@ -189,4 +210,3 @@ Codex Tools (JSON schema examples)
   },
   "run": "python3 a2dev_cli.py pm-sprints --capacity {{capacity}} --weeks {{weeks}}"
 }
-
