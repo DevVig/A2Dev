@@ -11,6 +11,12 @@ Key Features
 - Local‑first and dependency‑light: no network calls by default; optional scans (semgrep/gitleaks).
 - Node wrapper + Python core: `npx a2dev` for convenience; Python CLI available where Node isn’t.
 
+Optimized for Codex
+- Stdio tools: all commands print human‑first output; easy to wire in Codex via tool definitions (`examples/codex-tools.ts`).
+- Conversational router: messages starting with `@analyst/@pm/@dev/@spm` or `*command` route through `a2dev route` for role‑aware actions and status lines.
+- Deterministic artifacts: outputs live under `docs/*`, enabling Codex to reason over concrete files instead of volatile context.
+- Minimal deps: avoids network calls by default; suitable for local/offline development.
+
 Quick Start (Node-first)
 - npx (no install): `npx a2dev install` then `a2dev pm story 1`
 - Global (optional): `npm i -g a2dev` then `a2dev pm story 1`
@@ -247,3 +253,13 @@ Command Summary
 - `a2dev timeline <assess|id>` — show assess/story timeline.
 - `a2dev smoke` — minimal end‑to‑end smoke.
 - `a2dev uninstall [--force]` — conservative removal of installed files.
+
+Brownfield Wizard & Audit
+- One‑shot wizard: `a2dev brownfield --name "Your App" --append-prd --assess` (inventory → architecture snapshot → assessment → PRD update → assess).
+- Interactive menu: `a2dev setup` (Greenfield, Brownfield, Audit, Proposals/Sprints, Env, Bootstrap, Pre‑commit).
+- Audit: `a2dev audit` writes `docs/analyst/quality-audit.md` (Semgrep/Gitleaks summary + hotspots) to guide stabilization vs. feature work.
+
+Credits & Influences
+- BMAD Method — Build‑Measure‑Analyze‑Decide (link to be added by maintainers).
+- Agile ADDIE Framework — foundations and phases used by A2Dev (this project).
+- Agile Manifesto — https://agilemanifesto.org/

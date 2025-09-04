@@ -257,6 +257,29 @@ def _run_quality_audit(dest: Path) -> str:
     if isinstance(leaks, dict) and leaks.get('status') not in {'skipped', 'error'}:
         arr = leaks.get('findings', [])
         findings = len(arr) if isinstance(arr, list) else 0
+    # Hotspots: top directories by code file count and total bytes
+    by_count: dict[str, int] = {}
+    by_bytes: dict[str, int] = {}
+    try:
+        for dirpath, dirnames, filenames in os.walk(dest):
+            if any(skip in dirpath for skip in [".git", "node_modules", ".venv", "venv", ".a2dev", ".idea", ".vscode"]):
+                continue
+            rel = str(Path(dirpath).resolve().relative_to(dest.resolve())) or "."
+            c = 0; b = 0
+            for f in filenames:
+                p = Path(dirpath) / f
+                try:
+                    sz = p.stat().st_size
+                except Exception:
+                    sz = 0
+                c += 1; b += int(sz)
+            by_count[rel] = by_count.get(rel, 0) + c
+            by_bytes[rel] = by_bytes.get(rel, 0) + b
+    except Exception:
+        pass
+    top_count = sorted(by_count.items(), key=lambda kv: (-kv[1], kv[0]))[:10]
+    top_bytes = sorted(by_bytes.items(), key=lambda kv: (-kv[1], kv[0]))[:10]
+
     out_dir = Path('docs/analyst'); out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / 'quality-audit.md'
     lines = [
@@ -264,10 +287,18 @@ def _run_quality_audit(dest: Path) -> str:
         f'- Semgrep: high={high}, medium={med}, low={low} ({"skipped" if sem.get("status")=="skipped" else "ok"})',
         f'- Gitleaks: findings={findings} ({"skipped" if leaks.get("status")=="skipped" else "ok"})',
         '',
+        '## Hotspots (by file count)',
+    ]
+    lines += [f'- {d}: {n} files' for d, n in top_count] or ['- None']
+    lines += ['', '## Hotspots (by total bytes)']
+    lines += [f'- {d}: {n} bytes' for d, n in top_bytes] or ['- None']
+    lines += [
+        '',
         '## Recommendations',
-        '- Address any high-severity issues before new feature work.',
-        '- If secrets were detected, rotate and remove them immediately.',
-        '- Consider a stabilization epic if high/medium issues exceed your threshold.',
+        '- Address high-severity findings before new feature work.',
+        '- Rotate and remove any detected secrets immediately.',
+        '- Consider stabilization epics for hotspots with significant findings or size.',
+        '- Right-size large stories touching hotspots or break them into smaller slices.',
         '',
     ]
     path.write_text("\n".join(lines))
@@ -606,6 +637,13 @@ def main(argv: List[str] | None = None) -> None:
     p_install.add_argument("--dest", default=".", help="Destination project root (default: .)")
     p_install.add_argument("--no-bootstrap", action="store_true", help="Skip bootstrap checks")
     p_install.add_argument("--no-setup", action="store_true", help="Skip interactive setup menu")
+
+    # Brownfield one-shot wizard
+    p_bf = sub.add_parser("brownfield", help="One-shot brownfield wizard: inventory, architecture snapshot, assessment, and optional assess/PRD update")
+    p_bf.add_argument("--name", type=str, default="Your App")
+    p_bf.add_argument("--assess", action="store_true", help="Run assess after updating PRD")
+    p_bf.add_argument("--prd", type=str, default="docs/PRD.md", help="PRD path to update (default: docs/PRD.md)")
+    p_bf.add_argument("--append-prd", action="store_true", help="Append a Current System section based on inventory to the PRD")
 
     p_setup = sub.add_parser("setup", help="Run interactive setup menu (greenfield/brownfield/audit)")
 
@@ -1146,6 +1184,74 @@ def main(argv: List[str] | None = None) -> None:
     elif args.cmd == "audit":
         out = _run_quality_audit(Path(".").resolve())
         print(f"Quality audit written: {out}")
+    elif args.cmd == "brownfield":
+        dest = Path(".").resolve()
+        # Inventory
+        inv_paths = {}
+        try:
+            from .inventory import write_inventory
+            inv_paths = write_inventory(str(dest))
+            print("Inventory written:\n- " + "\n- ".join(inv_paths.values()))
+        except Exception as e:
+            print(f"Inventory failed: {e}")
+        # Architecture snapshot
+        try:
+            role = ArchitectureRole()
+            out_dir = Path("docs/architecture"); out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / "brownfield-architecture.md"
+            out.write_text(role.generate_brownfield_arch(args.name))
+            print(f"Brownfield architecture doc written: {out}")
+        except Exception as e:
+            print(f"Brownfield architecture failed: {e}")
+        # Assessment template
+        try:
+            out_dir = Path("docs/analyst"); out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / "brownfield-assessment.md"
+            out.write_text(
+                f"""# Brownfield Assessment — {args.name}\n\n## Inventory\n- Components/services/modules and owners.\n\n## Integrations\n- External/internal systems and contracts.\n\n## Risks & Tech Debt\n- Hotspots and deprecations.\n\n## Migration Candidates\n- Opportunities, quick wins, long-term refactors.\n"""
+            )
+            print(f"Brownfield assessment written: {out}")
+        except Exception as e:
+            print(f"Brownfield assessment failed: {e}")
+        # Append PRD with Current System section (optional)
+        prd_path = Path(args.prd)
+        if args.append_prd:
+            try:
+                prd_path.parent.mkdir(parents=True, exist_ok=True)
+                if not prd_path.exists():
+                    from .roles.analyst import AnalystRole
+                    prd_path.write_text(AnalystRole().prd_template(args.name))
+                inv_json = inv_paths.get("json")
+                summary_lines = []
+                if inv_json and Path(inv_json).exists():
+                    import json as _json
+                    inv = _json.loads(Path(inv_json).read_text())
+                    langs = inv.get("languages", {})
+                    manifests = inv.get("manifests", [])
+                    summary_lines.append("## Current System\n")
+                    if langs:
+                        summary_lines.append("### Languages")
+                        for k, v in sorted(langs.items(), key=lambda kv: (-kv[1], kv[0])):
+                            summary_lines.append(f"- {k}: {v} files")
+                    if manifests:
+                        summary_lines.append("\n### Manifests & Key Files")
+                        for m in manifests[:50]:
+                            summary_lines.append(f"- {m}")
+                    summary_lines.append("")
+                else:
+                    summary_lines = ["## Current System\n", "- Inventory pending", ""]
+                with prd_path.open("a", encoding="utf-8") as f:
+                    f.write("\n" + "\n".join(summary_lines))
+                print(f"PRD updated with Current System: {prd_path}")
+            except Exception as e:
+                print(f"PRD update failed: {e}")
+        # Assess if requested
+        if args.assess:
+            try:
+                cmd_plan(str(prd_path))
+            except Exception as e:
+                print(f"Assess failed: {e}")
+        print("Brownfield wizard complete.")
     elif args.cmd == "uninstall":
         target = Path(args.dest).resolve()
         # Conservative list of files/dirs to remove
