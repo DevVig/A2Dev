@@ -112,6 +112,9 @@ def parse_route(text: str) -> Optional[Route]:
             return Route(role="pm", cmd="prepare", arg=(rest or "next"))
         if cmd in {"proposals", "plan"}:
             return Route(role="pm", cmd="proposals", arg=rest or "")
+        if cmd in {"accept", "accept-proposals"}:
+            # allow optional comma-separated ids in rest
+            return Route(role="pm", cmd="accept-proposals", arg=(rest or ""))
 
     # sPM conversational intents
     if role == "spm":
