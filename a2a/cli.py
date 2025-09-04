@@ -646,6 +646,7 @@ def main(argv: List[str] | None = None) -> None:
     p_bf.add_argument("--append-prd", action="store_true", help="Append a Current System section based on inventory to the PRD")
 
     p_setup = sub.add_parser("setup", help="Run interactive setup menu (greenfield/brownfield/audit)")
+    p_qs = sub.add_parser("quickstart", help="Alias for setup (interactive menu)")
 
     p_audit = sub.add_parser("audit", help="Run code quality audit (semgrep + gitleaks) and summarize")
 
@@ -1171,7 +1172,7 @@ def main(argv: List[str] | None = None) -> None:
                 pass
         else:
             _print_next_steps(dest)
-    elif args.cmd == "setup":
+    elif args.cmd in ("setup", "quickstart"):
         dest = Path(".").resolve()
         _print_welcome()
         if sys.stdin.isatty() and sys.stdout.isatty():
