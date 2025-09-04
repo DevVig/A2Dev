@@ -54,6 +54,17 @@ def parse_route(text: str) -> Optional[Route]:
     cmd = tokens[0].lower()
     rest = " ".join(tokens[1:]).strip()
 
+    # Numeric quick-picks in Analyst mode: 1=fresh, 2=prepared, 3=codebase
+    if role == "analyst" and cmd in {"1", "2", "3"}:
+        if cmd == "1":
+            return Route(role="analyst", cmd="assess", arg="fresh")
+        if cmd == "2":
+            # Allow optional path after '2'
+            arg = f"prepared {rest}".strip()
+            return Route(role="analyst", cmd="assess", arg=arg)
+        if cmd == "3":
+            return Route(role="analyst", cmd="assess", arg="codebase")
+
     # Infer defaults
     if cmd in {"assess", "develop", "sustain", "prepare", "exit", "help"}:
         pass

@@ -10,6 +10,7 @@ def analyst_assess_guidance(prd_path: str) -> str:
         "- Choose a starting path: Fresh (create PRD), Prepared (use existing PRD), or Codebase (brownfield).\n"
         "- You can refine at any time (e.g., add ACs, rename stories).\n"
         "- Suggested replies: '@analyst assess fresh' | '@analyst assess prepared docs/PRD.md' | '@analyst assess codebase'\n"
+        "  (or reply with 1=Fresh, 2=Prepared [path], 3=Codebase)\n"
         "- I’ll stay in Analyst mode until you switch (e.g., '@pm …') or '@analyst exit'.\n"
         "- Quick tools: 'doctor' for readiness, 'setup' for menu"
     )

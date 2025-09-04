@@ -1386,7 +1386,7 @@ def main(argv: List[str] | None = None) -> None:
                 subprocess.run([py, str(repo_root / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
             except Exception:
                 pass
-        if not args.no_setup and sys.stdin.isatty() and sys.stdout.isatty():
+        if not args.no_setup and os.getenv("A2DEV_IN_CODEX") != "1" and sys.stdin.isatty() and sys.stdout.isatty():
             try:
                 _run_setup_menu(dest)
             except Exception:
@@ -1661,19 +1661,46 @@ def main(argv: List[str] | None = None) -> None:
         route = parse_route(text)
         if not route:
             raise SystemExit("Could not parse route. Try '@analyst assess docs/PRD.md' or '*develop 2'.")
+        json_mode = os.getenv("A2DEV_OUTPUT", "").lower() == "json"
+        def _emit(obj: dict, fallback: str | None = None):
+            if json_mode:
+                import json as _json
+                print(_json.dumps(obj))
+            elif fallback is not None:
+                print(fallback)
         # Guidance messaging
         if route.role == "analyst" and route.cmd == "assess":
             arg = (route.arg or "").strip()
             if not arg:
                 # Just show options without running assess
-                print(analyst_assess_guidance("docs/PRD.md"))
+                msg = analyst_assess_guidance("docs/PRD.md")
                 st = read_state(); st.active_role = "analyst"; write_state(st)
+                _emit({
+                    "role": "analyst",
+                    "cmd": "assess",
+                    "arg": "",
+                    "active_role": "analyst",
+                    "status": "ready",
+                    "options": ["fresh", "prepared <path>", "codebase"],
+                    "shortcuts": {"1": "fresh", "2": "prepared [path]", "3": "codebase"}
+                }, msg)
                 return
             # Modes: fresh|greenfield|start, prepared [<path>], brownfield|codebase|existing
             lower = arg.lower()
             if lower in {"fresh", "greenfield", "start"}:
-                print(analyst_assess_guidance("docs/PRD.md"))
+                if not json_mode:
+                    print(analyst_assess_guidance("docs/PRD.md"))
                 _flow_start_fresh(Path("."))
+                st = read_state(); st.active_role = "analyst"; write_state(st)
+                _emit({
+                    "role": "analyst",
+                    "cmd": "assess",
+                    "arg": "fresh",
+                    "active_role": "analyst",
+                    "status": "assessed",
+                    "phase": read_state().phase
+                })
+                return
             elif lower.startswith("prepared"):
                 # Allow: "prepared" or "prepared path/to/PRD.md"
                 parts = arg.split(maxsplit=1)
@@ -1691,32 +1718,54 @@ def main(argv: List[str] | None = None) -> None:
                 st = read_state(); st.active_role = "analyst"; write_state(st)
                 return
             elif lower in {"brownfield", "codebase", "existing"}:
-                print(analyst_assess_guidance("docs/PRD.md"))
+                if not json_mode:
+                    print(analyst_assess_guidance("docs/PRD.md"))
                 _flow_brownfield_assess(Path("."))
                 st = read_state(); st.active_role = "analyst"; write_state(st)
+                _emit({
+                    "role": "analyst",
+                    "cmd": "assess",
+                    "arg": "codebase",
+                    "active_role": "analyst",
+                    "status": "assessed",
+                    "phase": read_state().phase,
+                    "brownfield": True
+                })
                 return
             else:
                 # Default: treat arg as PRD path (existing behavior)
-                print(analyst_assess_guidance(arg or "docs/PRD.md"))
+                if not json_mode:
+                    print(analyst_assess_guidance(arg or "docs/PRD.md"))
                 role = AnalystRole()
                 out = role.write("brief", role.brief_from_prd(arg or "docs/PRD.md"))
-                print(f"Analyst brief written: {out}")
+                if not json_mode:
+                    print(f"Analyst brief written: {out}")
                 cmd_plan(arg or "docs/PRD.md")
                 state = read_state()
                 state.phase = "develop"
                 write_state(state)
-                print("Phase advanced to: develop")
-                print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [arg or 'docs/PRD.md']))
-                _print_codex_handoff()
+                if not json_mode:
+                    print("Phase advanced to: develop")
+                    print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [arg or 'docs/PRD.md']))
+                    _print_codex_handoff()
                 st = read_state(); st.active_role = "analyst"; write_state(st)
+                _emit({
+                    "role": "analyst",
+                    "cmd": "assess",
+                    "arg": arg or "docs/PRD.md",
+                    "active_role": "analyst",
+                    "status": "assessed",
+                    "phase": read_state().phase
+                })
                 return
         elif route.role == "analyst" and route.cmd == "help":
-            print(analyst_assess_guidance("docs/PRD.md"))
+            msg = analyst_assess_guidance("docs/PRD.md")
             st = read_state(); st.active_role = "analyst"; write_state(st)
+            _emit({"role": "analyst", "cmd": "help", "active_role": "analyst", "status": "ready"}, msg)
             return
         elif route.role == "analyst" and route.cmd == "exit":
             st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
-            print(f"Leaving Analyst mode. Active role: {st.active_role}")
+            _emit({"role": "analyst", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving Analyst mode. Active role: {st.active_role}")
             return
         elif route.role in ("pm", "sm"):
             if route.cmd == "help":
@@ -1725,52 +1774,95 @@ def main(argv: List[str] | None = None) -> None:
                     sid = int(route.arg)
                 except Exception:
                     sid = 1
-                print(pm_develop_guidance(sid))
+                _emit({"role": "pm", "cmd": "help", "story_id": sid, "active_role": "pm", "status": "ready"}, pm_develop_guidance(sid))
                 return
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
-                print(f"Leaving PM mode. Active role: {st.active_role}")
+                _emit({"role": "pm", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving PM mode. Active role: {st.active_role}")
                 return
             if route.cmd in ("develop", "prepare"):
-                print(pm_develop_guidance(int(route.arg)))
+                if not json_mode:
+                    print(pm_develop_guidance(int(route.arg)))
                 if route.cmd == "prepare":
                     cmd_prepare_story(int(route.arg))
+                    summary = {"role": "pm", "cmd": "prepare", "story_id": int(route.arg), "active_role": "pm", "status": "ok"}
                 else:
                     orch = Orchestrator()
                     result = orch.prepare_story(int(route.arg), also_scaffold=False)
-                    print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
-                    state = read_state()
-                    print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+                    if not json_mode:
+                        print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
+                        state = read_state()
+                        print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+                    summary = {
+                        "role": "pm",
+                        "cmd": "develop",
+                        "story_id": int(route.arg),
+                        "active_role": "pm",
+                        "status": "ok",
+                        "gate": bool(result.get("gate")),
+                        "issues": result.get("issues", []),
+                        "agents": result.get("agents", []),
+                        "artifacts": result.get("artifacts", {}),
+                        "referenced": result.get("referenced", [])
+                    }
                 st = read_state(); st.active_role = "pm"; write_state(st)
+                _emit(summary)
                 return
         elif route.role == "dev" and route.cmd in ("develop", "prepare"):
-            print("Dev: Preparing artifacts and scaffolding code (PM guides, Dev implements).")
+            if not json_mode:
+                print("Dev: Preparing artifacts and scaffolding code (PM guides, Dev implements).")
             orch = Orchestrator()
             result = orch.prepare_story(int(route.arg), also_scaffold=True)
-            if result.get("gate"):
-                print("Develop: Gate PASS")
-            else:
-                print("Develop: Gate FAIL\n- " + "\n- ".join(result.get("issues", [])))
-            state = read_state()
-            print(format_status_line(state.phase, "Dev", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+            if not json_mode:
+                if result.get("gate"):
+                    print("Develop: Gate PASS")
+                else:
+                    print("Develop: Gate FAIL\n- " + "\n- ".join(result.get("issues", [])))
+                state = read_state()
+                print(format_status_line(state.phase, "Dev", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+            _emit({
+                "role": "dev",
+                "cmd": route.cmd,
+                "story_id": int(route.arg),
+                "active_role": "dev",
+                "status": "ok",
+                "gate": bool(result.get("gate")),
+                "issues": result.get("issues", []),
+                "agents": result.get("agents", []),
+                "artifacts": result.get("artifacts", {}),
+                "referenced": result.get("referenced", [])
+            })
+            return
         elif route.role == "spm":
             if route.cmd == "help":
                 st = read_state(); st.active_role = "spm"; write_state(st)
-                print(spm_sustain_guidance(int(route.arg or "1")))
+                _emit({"role": "spm", "cmd": "help", "active_role": "spm", "status": "ready"}, spm_sustain_guidance(int(route.arg or "1")))
                 return
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
-                print(f"Leaving sPM mode. Active role: {st.active_role}")
+                _emit({"role": "spm", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving sPM mode. Active role: {st.active_role}")
                 return
             if route.cmd == "sustain":
-                print(spm_sustain_guidance(int(route.arg)))
+                if not json_mode:
+                    print(spm_sustain_guidance(int(route.arg)))
                 backlog = read_backlog()
                 if not backlog:
                     raise SystemExit("No backlog found. Run plan first.")
                 ok, issues, checked = gate_story(backlog, int(route.arg))
-                print("Sustain: Gate PASS" if ok else "Sustain: Gate FAIL\n- " + "\n- ".join(issues))
-                state = read_state()
-                print(format_status_line(state.phase, "sPM", [], [], checked, gate=("PASS" if ok else "FAIL")))
+                if not json_mode:
+                    print("Sustain: Gate PASS" if ok else "Sustain: Gate FAIL\n- " + "\n- ".join(issues))
+                    state = read_state()
+                    print(format_status_line(state.phase, "sPM", [], [], checked, gate=("PASS" if ok else "FAIL")))
+                _emit({
+                    "role": "spm",
+                    "cmd": "sustain",
+                    "story_id": int(route.arg),
+                    "active_role": "spm",
+                    "status": "ok",
+                    "gate": bool(ok),
+                    "issues": issues,
+                    "referenced": checked
+                })
                 st = read_state(); st.active_role = "spm"; write_state(st)
                 return
         else:
