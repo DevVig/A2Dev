@@ -199,6 +199,68 @@ def _spm_generate_maintenance_plan(dest: Path) -> str:
     return str(out)
 
 
+def _spm_propose_stabilization() -> list[int]:
+    """Parse quality-audit.md hotspots and propose stabilization stories under a new epic.
+
+    Returns a list of created/updated story IDs. Non-destructive: appends if absent.
+    """
+    from .storage import read_backlog as _rb, write_backlog as _wb
+    bl = _rb()
+    if not bl:
+        raise SystemExit("No backlog found. Run assess first.")
+    # Determine next IDs
+    max_epic = max((e.id for e in bl.epics), default=0)
+    max_story = max((s.id for e in bl.epics for s in e.stories), default=0)
+    # Parse hotspots by file count from audit
+    audit = Path("docs/analyst/quality-audit.md")
+    hotspots: list[str] = []
+    if audit.exists():
+        lines = audit.read_text().splitlines()
+        try:
+            i = lines.index("## Hotspots (by file count)")
+            for ln in lines[i+1:i+10]:
+                ln = ln.strip()
+                if ln.startswith("- "):
+                    dir_name = ln[2:].split(":", 1)[0].strip()
+                    if dir_name:
+                        hotspots.append(dir_name)
+        except ValueError:
+            pass
+    hotspots = hotspots[:3] or ["repo"]
+    # Find or create maintenance epic
+    from .schema import Epic, Story, Priority
+    maint = next((e for e in bl.epics if e.title.lower().startswith("maintenance")), None)
+    if not maint:
+        max_epic += 1
+        maint = Epic(id=max_epic, title="Maintenance and Stabilization", description="Stabilize hotspots and address audit findings.")
+        bl.epics.append(maint)
+    existing_titles = {s.title for s in maint.stories}
+    created_ids: list[int] = []
+    for d in hotspots:
+        title = f"Stabilize hotspot: {d}"
+        if title in existing_titles:
+            continue
+        max_story += 1
+        s = Story(
+            id=max_story,
+            epic_id=maint.id,
+            title=title,
+            description=f"Refactor and add tests in hotspot directory '{d}'. Address high/medium findings, improve structure, and add runbook items if relevant.",
+            acceptance_criteria=[
+                "High-severity issues fixed (Semgrep)",
+                "No secrets detected (Gitleaks)",
+                "Add/repair tests for critical paths",
+                "Right-size large modules (split/rename/dead code removal)",
+            ],
+            estimate=2.0,
+            priority=Priority.should,
+        )
+        maint.stories.append(s)
+        created_ids.append(s.id)
+    _wb(bl)
+    return created_ids
+
+
 def _enable_dry_run_monkey_patches() -> None:
     # Monkey-patch Path and shutil write operations to no-op with logs
     from pathlib import Path as _Path
@@ -1896,6 +1958,11 @@ def main(argv: List[str] | None = None) -> None:
                 out = _spm_generate_maintenance_plan(dest)
                 st = read_state(); st.active_role = "spm"; write_state(st)
                 _emit({"role": "spm", "cmd": "stabilize", "active_role": "spm", "status": "ok", "plan": out}, f"Maintenance plan written: {out}")
+                return
+            if route.cmd == "propose":
+                updated = _spm_propose_stabilization()
+                st = read_state(); st.active_role = "spm"; write_state(st)
+                _emit({"role": "spm", "cmd": "propose", "active_role": "spm", "status": "ok", "stories": updated}, f"Stabilization stories proposed/updated: {updated}")
                 return
             if route.cmd == "sustain":
                 if not json_mode:
