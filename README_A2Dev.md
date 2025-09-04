@@ -24,6 +24,13 @@ Quick Start (Node-first)
 - Global (optional): `npm i -g a2dev` then `a2dev pm story 1`
 - `.env.local` is loaded automatically; copy `.env.example` and fill it.
 
+Readiness
+- Doctor: `a2dev doctor` — checks tools (rg/ctags/semgrep/gitleaks), runs a code quality audit, and prints next steps.
+- Setup menu: `a2dev quickstart` — 3 primary paths:
+  - Start Fresh: create PRD and assess (Greenfield)
+  - I come prepared: assess an existing PRD
+  - I already started: assess an existing codebase (Brownfield) — includes inventory + audit
+
 Python path (optional)
 - For environments without Node/npm, you can still run:
   - `python3 a2dev_cli.py install --dest .`
@@ -255,6 +262,7 @@ Command Summary
 - `a2dev timeline <assess|id>` — show assess/story timeline.
 - `a2dev smoke` — minimal end‑to‑end smoke.
 - `a2dev uninstall [--force]` — conservative removal of installed files.
+- `a2dev doctor` — environment + project readiness checks with audit summary.
 
 Brownfield Wizard & Audit
 - One‑shot wizard: `a2dev brownfield --name "Your App" --append-prd --assess` (inventory → architecture snapshot → assessment → PRD update → assess).
