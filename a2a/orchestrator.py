@@ -84,6 +84,24 @@ class Orchestrator:
         )
         ensure(f"docs/qa/trace/story-{story_id}.md", lambda: generate_trace(backlog, story_id), agent="QA")
 
+        # Supplemental artifacts
+        try:
+            # Always include a11y checklist for UI stories (low-cost)
+            ensure(f"docs/ux/a11y/story-{story_id}.md", lambda: self.ux.write_a11y_checklist(story_id), agent="UX")
+        except Exception:
+            pass
+        # Risk-based additional docs
+        risk_path = Path(f"docs/qa/risk/story-{story_id}.json")
+        if risk_path.exists():
+            try:
+                import json as _json
+                level = _json.loads(risk_path.read_text()).get("level", "low").lower()
+                if level == "high":
+                    ensure(f"docs/architecture/reviews/story-{story_id}.md", lambda: self.arch.write_arch_review(story_id), agent="Architecture")
+                    ensure(f"docs/devops/runbooks/story-{story_id}.md", lambda: self.devops.write_runbook(story_id), agent="DevOps")
+            except Exception:
+                pass
+
         # Optional static analysis (Semgrep) summary per story
         semgrep = SemgrepAdapter()
         sem_out = semgrep.scan(config=str(Path('.a2dev/semgrep/rules.yml')) if Path('.a2dev/semgrep/rules.yml').exists() else 'auto')

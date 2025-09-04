@@ -34,3 +34,15 @@ class DevOpsRole:
         out.write_text(text)
         return str(out)
 
+    def write_runbook(self, story_id: int) -> str:
+        out_dir = Path("docs/devops/runbooks")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"story-{story_id}.md"
+        # Load template if present
+        tpl = Path(".a2dev/templates/devops/runbook.md")
+        if tpl.exists():
+            txt = tpl.read_text().replace("{{id}}", str(story_id))
+        else:
+            txt = f"# Service Runbook — Story {story_id}\n\n- Owners, SLIs/SLOs, alerts, deploy/rollback, secrets, failure modes.\n"
+        out.write_text(txt)
+        return str(out)
