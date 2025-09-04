@@ -69,67 +69,25 @@ def _print_next_steps(dest: Path) -> None:
 def _run_setup_menu(dest: Path) -> None:
     while True:
         print("\nSetup Menu — choose an option:")
-        print("  1) Greenfield: assess PRD and prepare story")
-        print("  2) Brownfield: inventory and assessment")
-        print("  3) Code Quality Audit (semgrep + gitleaks)")
-        print("  4) Plan Proposals/Sprints")
-        print("  5) Copy .env.example → .env.local")
-        print("  6) Run bootstrap checks")
-        print("  7) Install pre-commit hook (gitleaks + semgrep)")
-        print("  8) Show Quick Start commands")
-        print("  9) Exit")
+        print("  1) Start Fresh: create PRD and assess (Greenfield)")
+        print("  2) I come prepared: assess an existing PRD")
+        print("  3) I already started: assess an existing codebase (Brownfield)")
+        print("  4) More options… (audit, proposals, env, hooks)")
+        print("  5) Exit")
         try:
             choice = input("> ").strip()
         except EOFError:
             print()
             break
         if choice == "1":
-            _flow_greenfield(dest)
+            _flow_start_fresh(dest)
         elif choice == "2":
-            _flow_brownfield(dest)
+            _flow_have_prd(dest)
         elif choice == "3":
-            _run_quality_audit(dest)
+            _flow_brownfield_assess(dest)
         elif choice == "4":
-            _flow_plan_proposals(dest)
+            _more_options_menu(dest)
         elif choice == "5":
-            src = dest / ".env.example"
-            dst = dest / ".env.local"
-            if dst.exists():
-                print("- .env.local already exists; skipping")
-            elif src.exists():
-                shutil.copy2(src, dst)
-                print("- Created .env.local from template")
-            else:
-                print("- .env.example not found; skipping")
-        elif choice == "6":
-            try:
-                py = sys.executable or "python3"
-                import subprocess
-                subprocess.run([py, str(dest / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
-            except Exception as e:
-                print(f"- Bootstrap failed to start: {e}")
-        elif choice == "7":
-            hook_src = dest / ".a2dev" / "hooks" / "pre-commit.sample"
-            hooks_dir = dest / ".git" / "hooks"
-            hook_dst = hooks_dir / "pre-commit"
-            try:
-                hooks_dir.mkdir(parents=True, exist_ok=True)
-                if hook_src.exists():
-                    shutil.copy2(hook_src, hook_dst)
-                    mode = os.stat(hook_dst).st_mode
-                    os.chmod(hook_dst, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-                    print(f"- Installed pre-commit hook at {hook_dst}")
-                else:
-                    print("- Sample hook not found; ensure A2Dev files are present")
-            except Exception as e:
-                print(f"- Failed to install pre-commit hook: {e}")
-        elif choice == "8":
-            print("\nQuick Start:")
-            print("- npx a2dev install")
-            print("- a2dev bootstrap")
-            print("- cp .env.example .env.local")
-            print("- a2dev pm story 1 --scaffold")
-        elif choice == "9":
             _print_next_steps(dest)
             break
         else:
@@ -153,9 +111,19 @@ def _ensure_prd(dest: Path) -> Path:
     return prd
 
 
-def _flow_greenfield(dest: Path) -> None:
+def _flow_start_fresh(dest: Path) -> None:
+    try:
+        name = input("Project name (default 'Project'): ").strip() or "Project"
+    except EOFError:
+        name = "Project"
     prd = _ensure_prd(dest)
-    print(f"- Using PRD: {prd}")
+    # Overwrite with a fresh template for clarity
+    try:
+        from .roles.analyst import AnalystRole
+        prd.write_text(AnalystRole().prd_template(name))
+    except Exception:
+        pass
+    print(f"- Created PRD: {prd}")
     try:
         cmd_plan(str(prd))
     except Exception as e:
@@ -179,10 +147,10 @@ def _flow_greenfield(dest: Path) -> None:
                 orch = Orchestrator()
                 result = orch.prepare_story(s.id, also_scaffold=sc)
                 print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
-    print("- Greenfield flow complete.")
+    print("- Start Fresh flow complete.")
 
 
-def _flow_brownfield(dest: Path) -> None:
+def _flow_brownfield_assess(dest: Path) -> None:
     # Inventory
     try:
         from .inventory import write_inventory
@@ -190,6 +158,11 @@ def _flow_brownfield(dest: Path) -> None:
         print("- Inventory written:\n  - " + "\n  - ".join(paths.values()))
     except Exception as e:
         print(f"- Inventory failed: {e}")
+    # Code quality audit (part of assessment)
+    try:
+        _run_quality_audit(dest)
+    except Exception as e:
+        print(f"- Quality audit failed: {e}")
     # Architecture snapshot
     try:
         role = ArchitectureRole()
@@ -233,7 +206,94 @@ def _flow_brownfield(dest: Path) -> None:
             cmd_plan(str(prd))
         except Exception as e:
             print(f"- Assess failed: {e}")
-    print("- Brownfield flow complete.")
+    print("- Brownfield assessment complete.")
+
+
+def _flow_have_prd(dest: Path) -> None:
+    try:
+        path = input("Path to PRD (default docs/PRD.md): ").strip() or "docs/PRD.md"
+    except EOFError:
+        path = "docs/PRD.md"
+    prd = Path(path)
+    if not prd.exists():
+        print(f"- PRD not found at {prd}; creating from template.")
+        try:
+            from .roles.analyst import AnalystRole
+            prd.parent.mkdir(parents=True, exist_ok=True)
+            prd.write_text(AnalystRole().prd_template("Project"))
+        except Exception:
+            pass
+    try:
+        cmd_plan(str(prd))
+    except Exception as e:
+        print(f"- Assess failed: {e}")
+        return
+    try:
+        ans = input("Prepare next story now? (y/N) ").strip().lower()
+    except EOFError:
+        ans = "n"
+    if ans == "y":
+        bl = read_backlog()
+        if bl:
+            pm = PMCoordinator()
+            s = pm.select_next_story(bl)
+            if s:
+                try:
+                    sc = input("Scaffold code? (y/N) ").strip().lower() == "y"
+                except EOFError:
+                    sc = False
+                orch = Orchestrator()
+                result = orch.prepare_story(s.id, also_scaffold=sc)
+                print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
+    print("- Prepared flow complete.")
+
+
+def _more_options_menu(dest: Path) -> None:
+    while True:
+        print("\nMore Options:")
+        print("  1) Code Quality Audit")
+        print("  2) Plan Proposals/Sprints")
+        print("  3) Copy .env.example → .env.local")
+        print("  4) Run bootstrap checks")
+        print("  5) Install pre-commit hook")
+        print("  6) Back")
+        try:
+            c = input("> ").strip()
+        except EOFError:
+            break
+        if c == "1":
+            _run_quality_audit(dest)
+        elif c == "2":
+            _flow_plan_proposals(dest)
+        elif c == "3":
+            src = dest / ".env.example"; dst = dest / ".env.local"
+            if dst.exists():
+                print("- .env.local already exists; skipping")
+            elif src.exists():
+                shutil.copy2(src, dst); print("- Created .env.local from template")
+            else:
+                print("- .env.example not found; skipping")
+        elif c == "4":
+            try:
+                import subprocess
+                py = sys.executable or "python3"
+                subprocess.run([py, str(Path(__file__).resolve().parents[1] / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
+            except Exception as e:
+                print(f"- Bootstrap failed: {e}")
+        elif c == "5":
+            hook_src = dest / ".a2dev" / "hooks" / "pre-commit.sample"; hooks_dir = dest / ".git" / "hooks"; hook_dst = hooks_dir / "pre-commit"
+            try:
+                hooks_dir.mkdir(parents=True, exist_ok=True)
+                if hook_src.exists():
+                    shutil.copy2(hook_src, hook_dst)
+                    mode = os.stat(hook_dst).st_mode; os.chmod(hook_dst, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    print(f"- Installed pre-commit hook at {hook_dst}")
+                else:
+                    print("- Sample hook not found; ensure A2Dev files are present")
+            except Exception as e:
+                print(f"- Failed to install pre-commit hook: {e}")
+        elif c == "6":
+            break
 
 
 def _run_quality_audit(dest: Path) -> str:
@@ -649,6 +709,7 @@ def main(argv: List[str] | None = None) -> None:
     p_qs = sub.add_parser("quickstart", help="Alias for setup (interactive menu)")
 
     p_audit = sub.add_parser("audit", help="Run code quality audit (semgrep + gitleaks) and summarize")
+    p_doctor = sub.add_parser("doctor", help="Run environment + project readiness checks and summarize")
 
     p_uninst = sub.add_parser("uninstall", help="Uninstall A2Dev scaffolding from a project (conservative)")
     p_uninst.add_argument("--dest", default=".", help="Target project root (default: .)")
@@ -1161,7 +1222,8 @@ def main(argv: List[str] | None = None) -> None:
             try:
                 import subprocess
                 py = sys.executable or "python3"
-                subprocess.run([py, str(dest / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
+                # Use packaged CLI to avoid missing local deps during first-time install
+                subprocess.run([py, str(repo_root / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
             except Exception:
                 pass
         if not args.no_setup and sys.stdin.isatty() and sys.stdout.isatty():
@@ -1185,6 +1247,39 @@ def main(argv: List[str] | None = None) -> None:
     elif args.cmd == "audit":
         out = _run_quality_audit(Path(".").resolve())
         print(f"Quality audit written: {out}")
+    elif args.cmd == "doctor":
+        print("A2Dev Doctor — Checking your environment and project readiness…")
+        dest = Path(".").resolve()
+        # Tooling
+        missing: list[str] = []
+        from shutil import which
+        for tool in ("rg", "ctags", "semgrep", "gitleaks"):
+            if which(tool) is None:
+                missing.append(tool)
+        # PRD/backlog
+        prd = dest / "docs" / "PRD.md"
+        backlog = Path("docs/backlog.json")
+        bl_ok = backlog.exists()
+        prd_ok = prd.exists()
+        # Audit summary
+        qa_path = Path("docs/analyst/quality-audit.md")
+        qa_out = _run_quality_audit(dest)
+        # Guidance
+        print("\nDoctor Summary:")
+        print(f"- Tools missing: {', '.join(missing) if missing else 'none'}")
+        print(f"- PRD present: {'yes' if prd_ok else 'no'}")
+        print(f"- Backlog present: {'yes' if bl_ok else 'no'}")
+        print(f"- Quality audit: {qa_out}")
+        print("\nNext steps:")
+        if not prd_ok:
+            print("- Run: a2dev quickstart → choose 'Start Fresh' or 'I come prepared'")
+        elif not bl_ok:
+            print("- Run: a2dev assess docs/PRD.md")
+        else:
+            print("- Run: a2dev pm next (or a2dev setup for menu)")
+        if missing:
+            print("- Install tools: ripgrep, universal-ctags, semgrep, gitleaks")
+        print("- Optional: install pre-commit (gitleaks+semgrep) from .a2dev/hooks/")
     elif args.cmd == "brownfield":
         dest = Path(".").resolve()
         # Inventory
