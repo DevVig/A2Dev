@@ -41,14 +41,13 @@ def parse_route(text: str) -> Optional[Route]:
 
     tokens = s.split()
     if not tokens:
-        # Allow bare role mentions to trigger default flows
+        # Bare role mentions default to contextual help
         if role == "analyst":
-            return Route(role="analyst", cmd="assess", arg="")
+            return Route(role="analyst", cmd="help", arg="")
         if role == "pm":
-            # Default to develop next (caller may prompt further)
-            return Route(role="pm", cmd="develop", arg="1")
+            return Route(role="pm", cmd="help", arg="1")
         if role == "spm":
-            return Route(role="spm", cmd="sustain", arg="1")
+            return Route(role="spm", cmd="help", arg="1")
         return None
 
     cmd = tokens[0].lower()
@@ -103,6 +102,8 @@ def parse_route(text: str) -> Optional[Route]:
             return Route(role="analyst", cmd="assess", arg=arg)
         if cmd in {"brownfield", "codebase", "existing"}:
             return Route(role="analyst", cmd="assess", arg="codebase")
+        if cmd == "audit":
+            return Route(role="analyst", cmd="audit", arg="")
 
     # PM conversational intents
     if role == "pm":
