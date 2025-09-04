@@ -55,8 +55,8 @@ function main() {
   fs.mkdirSync(path.join(dest, 'docs'), { recursive: true });
   fs.mkdirSync(path.join(dest, 'docs', 'ux'), { recursive: true });
 
-  // Policies & semgrep
-  for (const sub of ['policies', 'semgrep']) {
+  // Policies, semgrep, templates
+  for (const sub of ['policies', 'semgrep', 'templates']) {
     const srcDir = path.join(pkgRoot, '.a2dev', sub);
     if (fs.existsSync(srcDir)) {
       for (const entry of fs.readdirSync(srcDir)) {

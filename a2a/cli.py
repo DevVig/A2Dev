@@ -169,6 +169,36 @@ def _install_missing_tools_interactive(dest: Path) -> None:
     print(f"- Remaining missing tools: {', '.join(remaining) if remaining else 'none'}")
 
 
+def _spm_generate_maintenance_plan(dest: Path) -> str:
+    # Ensure audit exists
+    qa_md = Path("docs/analyst/quality-audit.md")
+    if not qa_md.exists():
+        _run_quality_audit(dest)
+    # Create maintenance plan
+    out_dir = Path("docs/qa/maintenance"); out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / "plan.md"
+    lines = [
+        "# Maintenance & Stabilization Plan", "",
+        "This plan aggregates code quality hotspots and proposes small, high-impact changes.", "",
+        "## Sources", "- docs/analyst/quality-audit.md",
+        "",
+        "## Recommendations",
+        "- Fix high-severity Semgrep findings before new feature work.",
+        "- Rotate and remove any detected secrets immediately.",
+        "- Target top hotspots by file count/bytes for refactors (naming, dead code, split large files).",
+        "- Add/repair tests in hotspot modules; aim for smoke coverage first.",
+        "- Upgrade critical dependencies with known vulnerabilities.",
+        "",
+        "## Candidate Small Tasks",
+        "- Create lint/format scripts for steady hygiene.",
+        "- Add CI checks (semgrep, gitleaks) on PRs.",
+        "- Add README sections for setup/troubleshooting in hotspot modules.",
+        "- Add monitoring/logging where missing in critical code paths.",
+    ]
+    out.write_text("\n".join(lines))
+    return str(out)
+
+
 def _enable_dry_run_monkey_patches() -> None:
     # Monkey-patch Path and shutil write operations to no-op with logs
     from pathlib import Path as _Path
@@ -1317,7 +1347,7 @@ def main(argv: List[str] | None = None) -> None:
         ensure_dir(dest / "docs/ux")
 
         # Policies & semgrep
-        for subdir in ["policies", "semgrep"]:
+        for subdir in ["policies", "semgrep", "templates"]:
             src_dir = repo_root / ".a2dev" / subdir
             if src_dir.exists():
                 for item in src_dir.iterdir():
@@ -1360,7 +1390,7 @@ def main(argv: List[str] | None = None) -> None:
                     import shutil
                     shutil.copy2(src, dst)
         ensure_dir(dest / ".a2dev"); ensure_dir(dest / "docs"); ensure_dir(dest / "docs/ux")
-        for subdir in ["policies", "semgrep"]:
+        for subdir in ["policies", "semgrep", "templates"]:
             src_dir = repo_root / ".a2dev" / subdir
             if src_dir.exists():
                 for item in src_dir.iterdir():
@@ -1781,22 +1811,41 @@ def main(argv: List[str] | None = None) -> None:
                 _emit({"role": "pm", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving PM mode. Active role: {st.active_role}")
                 return
             if route.cmd in ("develop", "prepare"):
+                # Resolve 'next' or 'continue' intents
+                backlog = read_backlog()
+                state = read_state()
+                sid_raw = route.arg
+                sid: int | None = None
+                if isinstance(sid_raw, str) and sid_raw.lower() in {"next", "continue", "cont"}:
+                    if sid_raw.lower().startswith("cont") and state.current_story_id:
+                        sid = state.current_story_id
+                    elif backlog:
+                        pmc = PMCoordinator()
+                        nxt = pmc.select_next_story(backlog)
+                        sid = nxt.id if nxt else None
+                else:
+                    try:
+                        sid = int(route.arg)
+                    except Exception:
+                        sid = None
+                if sid is None and backlog:
+                    pmc = PMCoordinator(); nxt = pmc.select_next_story(backlog); sid = nxt.id if nxt else 1
+
                 if not json_mode:
-                    print(pm_develop_guidance(int(route.arg)))
+                    print(pm_develop_guidance(int(sid or 1)))
                 if route.cmd == "prepare":
-                    cmd_prepare_story(int(route.arg))
-                    summary = {"role": "pm", "cmd": "prepare", "story_id": int(route.arg), "active_role": "pm", "status": "ok"}
+                    cmd_prepare_story(int(sid or 1))
+                    summary = {"role": "pm", "cmd": "prepare", "story_id": int(sid or 1), "active_role": "pm", "status": "ok"}
                 else:
                     orch = Orchestrator()
-                    result = orch.prepare_story(int(route.arg), also_scaffold=False)
+                    result = orch.prepare_story(int(sid or 1), also_scaffold=False)
                     if not json_mode:
                         print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
-                        state = read_state()
                         print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
                     summary = {
                         "role": "pm",
                         "cmd": "develop",
-                        "story_id": int(route.arg),
+                        "story_id": int(sid or 1),
                         "active_role": "pm",
                         "status": "ok",
                         "gate": bool(result.get("gate")),
@@ -1841,6 +1890,12 @@ def main(argv: List[str] | None = None) -> None:
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
                 _emit({"role": "spm", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving sPM mode. Active role: {st.active_role}")
+                return
+            if route.cmd == "stabilize":
+                dest = Path(".").resolve()
+                out = _spm_generate_maintenance_plan(dest)
+                st = read_state(); st.active_role = "spm"; write_state(st)
+                _emit({"role": "spm", "cmd": "stabilize", "active_role": "spm", "status": "ok", "plan": out}, f"Maintenance plan written: {out}")
                 return
             if route.cmd == "sustain":
                 if not json_mode:

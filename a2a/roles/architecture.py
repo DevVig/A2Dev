@@ -122,3 +122,15 @@ Summarize system goals and constraints.
 ## Open Questions
 - TBD
 """
+
+    def write_arch_review(self, story_id: int) -> str:
+        out_dir = Path("docs/architecture/reviews")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"story-{story_id}.md"
+        tpl = Path(".a2dev/templates/architecture/review.md")
+        if tpl.exists():
+            txt = tpl.read_text().replace("{{id}}", str(story_id))
+        else:
+            txt = f"# Architecture Review — Story {story_id}\n\n- Context, design, NFRs, risks, contracts, questions.\n"
+        out.write_text(txt)
+        return str(out)

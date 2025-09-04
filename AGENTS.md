@@ -20,13 +20,29 @@ Personas
     - `@analyst assess codebase` (brownfield assessment)
 - PM (Develop):
   - Goals: coordinate UX → ADR → Deep Plan → QA → Security → DevOps → Data → Trace → Shard → Gate.
-  - Trigger: `@pm develop <story_id>` or `*develop <story_id>`; also `pm next|continue` for autopilot.
+  - Triggers:
+    - `@pm develop <story_id>` or `*develop <story_id>`
+    - `@pm next` / `@pm continue` (auto-select next or current story)
+    - `@pm scaffold <story_id|next>` (prepare with scaffolding)
 - sPM (Sustain):
   - Goals: confirm gates, security findings, rollout plan, monitoring readiness.
-  - Trigger: `@spm sustain <story_id>`
+  - Triggers:
+    - `@spm sustain <story_id>`
+    - `@spm stabilize` (generate a maintenance plan from the latest audit)
 - Dev (optional):
   - Goals: scaffold code; start implementation under `features/story-<id>/`.
   - Trigger: `@dev develop <story_id>`
+
+Role Deliverables & Emphasis
+- UI/UX (sub‑tool)
+  - PM phase: UX story spec (`docs/ux/story-<id>.md`), Front‑End Spec, A11y Checklist (`docs/ux/a11y/story-<id>.md`).
+  - sPM phase: A11y fixes, small usability improvements, component consistency.
+- Architecture (sub‑tool)
+  - PM phase: ADR (`docs/architecture/ADR-story-<id>.md`), Architecture Doc.
+  - High‑risk: Architecture Review (`docs/architecture/reviews/story-<id>.md`).
+- DevOps (sub‑tool)
+  - PM phase: DevOps Plan (`docs/devops/story-<id>.md`).
+  - High‑risk/sPM: Runbook (`docs/devops/runbooks/story-<id>.md`), SLOs/alerts.
 
 Codex Tools (suggested)
 - route(text: string)
@@ -77,6 +93,10 @@ Otherwise (for fallbacks):
   - In Sustain phase: call `sustain(story_id)` or `gate_check(story_id)`.
 - Always print one short status line after each action.
 - Persist artifacts under `docs/*` and update the timeline.
+- Best practices:
+  - UI/UX: WCAG 2.1 AA, design tokens, component‑driven, heuristic review, a11y testing.
+  - Architecture: ADRs, C4 maps, 12‑factor/NFRs, evolutionary change, API contracts.
+  - DevOps: DORA metrics, CI/CD gates, IaC, GitOps/trunk, SLO/SLI, runbooks, feature flags.
 
 Bootstrap (startup script suggestion)
 - Run `python3 a2dev_cli.py bootstrap` on startup to check tools (rg, ctags, semgrep, gitleaks) and give install hints.
@@ -105,6 +125,9 @@ Keep responses concise, include next‑step options, and never simulate tool beh
   },
   "run": "python3 a2dev_cli.py route \"{{text}}\""
 }
+
+JSON output (optional)
+- Set `A2DEV_OUTPUT=json` in the tool environment to receive structured JSON events from `route` instead of plain text. This is useful for rendering menus, cards, or state in your UI.
 
 2) pm_next
 {

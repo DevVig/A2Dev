@@ -35,6 +35,18 @@ class UXRole:
             notes=notes,
         )
 
+    def write_a11y_checklist(self, story_id: int) -> str:
+        from pathlib import Path
+        out_dir = Path("docs/ux/a11y"); out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"story-{story_id}.md"
+        tpl = Path(".a2dev/templates/ux/a11y-checklist.md")
+        if tpl.exists():
+            txt = tpl.read_text()
+        else:
+            txt = "# Accessibility Checklist\n\n- Keyboard, contrast, semantics, ARIA, forms, media.\n"
+        out.write_text(txt)
+        return str(out)
+
     def frontend_spec(self, project_name: str | None = None) -> str:
         name = project_name or "Project"
         return f"""# Front-End Spec — {name}

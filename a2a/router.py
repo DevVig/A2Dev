@@ -94,3 +94,24 @@ def parse_route(text: str) -> Optional[Route]:
             return None
 
     return Route(role=role, cmd=cmd, arg=rest)
+    # Analyst conversational intents
+    if role == "analyst":
+        if cmd in {"fresh", "greenfield", "start"}:
+            return Route(role="analyst", cmd="assess", arg="fresh")
+        if cmd == "prepared":
+            arg = (f"prepared {rest}").strip()
+            return Route(role="analyst", cmd="assess", arg=arg)
+        if cmd in {"brownfield", "codebase", "existing"}:
+            return Route(role="analyst", cmd="assess", arg="codebase")
+
+    # PM conversational intents
+    if role == "pm":
+        if cmd in {"next", "continue", "cont"}:
+            return Route(role="pm", cmd="develop", arg=cmd)
+        if cmd == "scaffold":
+            return Route(role="pm", cmd="prepare", arg=(rest or "next"))
+
+    # sPM conversational intents
+    if role == "spm":
+        if cmd in {"stabilize", "bugs", "maintenance", "maintain"}:
+            return Route(role="spm", cmd="stabilize", arg=rest)

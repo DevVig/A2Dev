@@ -61,6 +61,14 @@ def gate_story(backlog: Backlog, story_id: int) -> tuple[bool, list[str], list[s
                 checked_paths.append(str(design_doc))
                 if not design_doc.exists():
                     missing.append("Missing QA Design Review for high-risk story")
+                # Architecture review and runbook required for high-risk stories
+                arch_review = Path(f"docs/architecture/reviews/story-{story_id}.md")
+                devops_runbook = Path(f"docs/devops/runbooks/story-{story_id}.md")
+                checked_paths += [str(arch_review), str(devops_runbook)]
+                if not arch_review.exists():
+                    missing.append("Missing Architecture Review for high-risk story")
+                if not devops_runbook.exists():
+                    missing.append("Missing DevOps Runbook for high-risk story")
         except Exception:
             missing.append("Invalid risk file format")
 
