@@ -83,6 +83,88 @@ def _print_codex_handoff() -> None:
     print("- In chat, type: @pm develop {id}  (or @pm next)".format(id=(first_id or 1)))
     print("- Or from CLI: a2dev route '@pm develop {id}'".format(id=(first_id or 1)))
 
+
+def _detect_missing_tools() -> list[str]:
+    missing: list[str] = []
+    from shutil import which
+    for tool in ("rg", "ctags", "semgrep", "gitleaks"):
+        if which(tool) is None:
+            missing.append(tool)
+    return missing
+
+
+def _install_tools(missing: list[str]) -> None:
+    if not missing:
+        print("- All recommended tools are installed.")
+        return
+    import platform
+    os_name = platform.system().lower()
+    print(f"- Attempting install for: {', '.join(missing)}")
+    cmds: list[list[str]] = []
+    # Build commands per platform and tool availability
+    from shutil import which
+    if os_name == "darwin" and which("brew"):
+        # Homebrew: install each formula if missing
+        formula_map = {"rg": "ripgrep", "ctags": "universal-ctags", "semgrep": "semgrep", "gitleaks": "gitleaks"}
+        to_install = [formula_map[t] for t in missing if t in formula_map]
+        if to_install:
+            cmds.append(["brew", "install", *to_install])
+    elif os_name == "linux":
+        # Debian/Ubuntu apt for rg/ctags; pipx for semgrep/gitleaks if available
+        aptables = [t for t in missing if t in ("rg", "ctags")]
+        if aptables and which("apt"):
+            # Map rg->ripgrep, ctags->universal-ctags
+            apt_pkgs = ["ripgrep" if t == "rg" else "universal-ctags" for t in aptables]
+            cmds.append(["sudo", "apt", "update"])
+            cmds.append(["sudo", "apt", "install", "-y", *apt_pkgs])
+        pipxables = [t for t in missing if t in ("semgrep", "gitleaks")]
+        if pipxables and which("pipx"):
+            for t in pipxables:
+                cmds.append(["pipx", "install", t])
+    elif os_name == "windows":
+        if which("choco"):
+            # Best-effort chocolatey install
+            choco_map = {"rg": "ripgrep", "ctags": "universal-ctags", "semgrep": "semgrep", "gitleaks": "gitleaks"}
+            pkgs = [choco_map[t] for t in missing if t in choco_map]
+            if pkgs:
+                cmds.append(["choco", "install", "-y", *pkgs])
+        elif which("winget"):
+            # Winget per package (names may vary across sources)
+            winget_map = {"rg": "BurntSushi.ripgrep", "semgrep": "Semgrep.semgrep"}
+            for t in missing:
+                if t in winget_map:
+                    cmds.append(["winget", "install", "--silent", winget_map[t]])
+
+    if not cmds:
+        print("- Could not determine an automatic install path for your platform or package manager. Please install manually.")
+        return
+    # Confirm
+    try:
+        ans = input("Run the following commands? (y/N)\n- " + "\n- ".join(" ".join(c) for c in cmds) + "\n> ").strip().lower()
+    except EOFError:
+        ans = "n"
+    if ans != "y":
+        print("- Skipping automatic install.")
+        return
+    import subprocess
+    for c in cmds:
+        try:
+            print("$", " ".join(c))
+            subprocess.run(c, check=False)
+        except Exception as e:
+            print(f"- Command failed: {' '.join(c)} — {e}")
+
+
+def _install_missing_tools_interactive(dest: Path) -> None:
+    missing = _detect_missing_tools()
+    if not missing:
+        print("- All recommended tools are present.")
+        return
+    _install_tools(missing)
+    # Re-check
+    remaining = _detect_missing_tools()
+    print(f"- Remaining missing tools: {', '.join(remaining) if remaining else 'none'}")
+
 def _run_setup_menu(dest: Path) -> None:
     while True:
         print("\nSetup Menu — choose an option:")
@@ -275,8 +357,9 @@ def _more_options_menu(dest: Path) -> None:
         print("  2) Plan Proposals/Sprints")
         print("  3) Copy .env.example → .env.local")
         print("  4) Run bootstrap checks")
-        print("  5) Install pre-commit hook")
-        print("  6) Back")
+        print("  5) Install missing tools (one-button)")
+        print("  6) Install pre-commit hook")
+        print("  7) Back")
         try:
             c = input("> ").strip()
         except EOFError:
@@ -301,6 +384,8 @@ def _more_options_menu(dest: Path) -> None:
             except Exception as e:
                 print(f"- Bootstrap failed: {e}")
         elif c == "5":
+            _install_missing_tools_interactive(dest)
+        elif c == "6":
             hook_src = dest / ".a2dev" / "hooks" / "pre-commit.sample"; hooks_dir = dest / ".git" / "hooks"; hook_dst = hooks_dir / "pre-commit"
             try:
                 hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -312,7 +397,7 @@ def _more_options_menu(dest: Path) -> None:
                     print("- Sample hook not found; ensure A2Dev files are present")
             except Exception as e:
                 print(f"- Failed to install pre-commit hook: {e}")
-        elif c == "6":
+        elif c == "7":
             break
 
 
@@ -730,6 +815,7 @@ def main(argv: List[str] | None = None) -> None:
 
     p_audit = sub.add_parser("audit", help="Run code quality audit (semgrep + gitleaks) and summarize")
     p_doctor = sub.add_parser("doctor", help="Run environment + project readiness checks and summarize")
+    p_doctor.add_argument("--fix", action="store_true", help="Attempt to install missing recommended tools")
 
     p_uninst = sub.add_parser("uninstall", help="Uninstall A2Dev scaffolding from a project (conservative)")
     p_uninst.add_argument("--dest", default=".", help="Target project root (default: .)")
@@ -1272,11 +1358,11 @@ def main(argv: List[str] | None = None) -> None:
         print("A2Dev Doctor — Checking your environment and project readiness…")
         dest = Path(".").resolve()
         # Tooling
-        missing: list[str] = []
-        from shutil import which
-        for tool in ("rg", "ctags", "semgrep", "gitleaks"):
-            if which(tool) is None:
-                missing.append(tool)
+        missing = _detect_missing_tools()
+        if args.fix and missing:
+            _install_tools(missing)
+            # refresh
+            missing = _detect_missing_tools()
         # PRD/backlog
         prd = dest / "docs" / "PRD.md"
         backlog = Path("docs/backlog.json")
@@ -1299,7 +1385,7 @@ def main(argv: List[str] | None = None) -> None:
         else:
             print("- Run: a2dev pm next (or a2dev setup for menu)")
         if missing:
-            print("- Install tools: ripgrep, universal-ctags, semgrep, gitleaks")
+            print("- Install tools: ripgrep, universal-ctags, semgrep, gitleaks (tip: a2dev doctor --fix)")
         print("- Optional: install pre-commit (gitleaks+semgrep) from .a2dev/hooks/")
     elif args.cmd == "brownfield":
         dest = Path(".").resolve()
