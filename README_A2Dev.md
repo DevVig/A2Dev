@@ -16,6 +16,7 @@ Optimized for Codex
 - Conversational router: messages starting with `@analyst/@pm/@dev/@spm` or `*command` route through `a2dev route` for role‑aware actions and status lines.
 - Deterministic artifacts: outputs live under `docs/*`, enabling Codex to reason over concrete files instead of volatile context.
 - Minimal deps: avoids network calls by default; suitable for local/offline development.
+ - Handoff: after assessment, the CLI prints “Handoff to Codex” with suggested next chat commands (e.g., `@pm develop <id>`). Use `tools/codex_router_example.py` to route chat.
 
 Quick Start (Node-first)
 - One-liner: `npx a2dev install && a2dev quickstart` (opens the menu)
