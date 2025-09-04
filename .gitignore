@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# A2Dev ephemeral artifacts
+.a2dev/journal/
+docs/security/
+docs/timeline/
+docs/stories/
+docs/ux/
+docs/architecture/
+docs/planning/
+docs/qa/
+docs/devops/
+docs/data/
+features/
+
+# Vendor (reference only)
+.a2dev/vendor/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

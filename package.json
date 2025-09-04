@@ -1,0 +1,50 @@
+{
+  "name": "a2dev",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agile ADDIE Dev Framework (A2Dev): local-first, PM-led orchestration for Codex CLI/IDE/Web",
+  "keywords": [
+    "agile",
+    "addie",
+    "codex",
+    "agents",
+    "orchestration",
+    "cli"
+  ],
+  "bin": {
+    "a2dev": "bin/a2dev.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-user/agile-addie-dev-framework.git"
+  },
+  "homepage": "https://github.com/your-user/agile-addie-dev-framework",
+  "author": "Jonathan Borgwing <jon@vig.dev>",
+  "license": "MIT",
+  "files": [
+    "bin/",
+    "a2a/**",
+    "a2dev_cli.py",
+    "a2a_cli.py",
+    "AGENTS.md",
+    "README_A2Dev.md",
+    ".a2dev/**",
+    "docs/PRD_SAMPLE.md",
+    "scripts/build_pyz.py",
+    "scripts/postinstall.js",
+    "scripts/startup.sh",
+    "tools/codex_router_example.py",
+    "examples/codex-tools.ts",
+    "examples/harness.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build:pyz": "python3 scripts/build_pyz.py",
+    "postinstall": "node scripts/postinstall.js"
+  }
+}

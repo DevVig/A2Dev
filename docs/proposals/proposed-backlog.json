@@ -1,0 +1,98 @@
+{
+  "epics": [
+    {
+      "id": 1,
+      "title": "# Product Requirements Document (Sample)",
+      "description": "",
+      "stories": [
+        {
+          "id": 1,
+          "epic_id": 1,
+          "title": "Initial Story",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": 1.0,
+          "priority": "should",
+          "dependencies": [],
+          "risks": []
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Authentication",
+      "description": "Overview\nUsers must sign in to access their dashboard and personalized data.",
+      "stories": [
+        {
+          "id": 2,
+          "epic_id": 2,
+          "title": "As a user, I can sign up with email and password.",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": 1.0,
+          "priority": "must",
+          "dependencies": [],
+          "risks": []
+        },
+        {
+          "id": 3,
+          "epic_id": 2,
+          "title": "As a user, I can sign in and sign out.",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": 1.0,
+          "priority": "should",
+          "dependencies": [],
+          "risks": []
+        },
+        {
+          "id": 4,
+          "epic_id": 2,
+          "title": "As a user, I can reset my password via email.",
+          "description": "",
+          "acceptance_criteria": [
+            "Passwords must be at least 12 characters.",
+            "Sign\u2011in should lock after 5 failed attempts.",
+            "Reset link expires after 30 minutes."
+          ],
+          "estimate": 3.0,
+          "priority": "should",
+          "dependencies": [],
+          "risks": []
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Dashboard",
+      "description": "Overview\nSigned\u2011in users see a summary of their data and quick actions.",
+      "stories": [
+        {
+          "id": 5,
+          "epic_id": 3,
+          "title": "As a user, I can view key metrics for the last 7 days.",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": 1.0,
+          "priority": "should",
+          "dependencies": [],
+          "risks": []
+        },
+        {
+          "id": 6,
+          "epic_id": 3,
+          "title": "As a user, I can filter metrics by date range.",
+          "description": "",
+          "acceptance_criteria": [
+            "Loading state appears while data fetches.",
+            "Empty state explains no data conditions."
+          ],
+          "estimate": 2.0,
+          "priority": "should",
+          "dependencies": [],
+          "risks": []
+        }
+      ]
+    }
+  ]
+}
