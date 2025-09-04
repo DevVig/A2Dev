@@ -50,13 +50,12 @@ function run(cmd, args) {
   const cwd = process.cwd();
   const args = process.argv.slice(2);
   const pkgRoot = resolve(__dirname, '..');
-  // Special-case "install" first to ensure init works even if local pyz is stale
+  // Special-case "install" first to ensure init works even if local copies are partial.
+  // Always use the packaged CLI for install to avoid missing deps (e.g., local a2dev_cli.py without a2a/).
   if (args[0] === 'install') {
-    const cliLocal = join(cwd, 'a2dev_cli.py');
     const cliPkg = join(pkgRoot, 'a2dev_cli.py');
-    const cli = existsSync(cliLocal) ? cliLocal : cliPkg;
     const py = which('python3') || which('python') || process.env.PYTHON || 'python3';
-    return run(py, [cli, 'install', '--dest', cwd]);
+    return run(py, [cliPkg, 'install', '--dest', cwd]);
   }
   // Prefer pyz if present for portability
   const pyzLocal = join(cwd, 'a2dev.pyz');
