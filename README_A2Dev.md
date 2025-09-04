@@ -28,6 +28,7 @@ Quick Start (Node-first)
 
 Readiness
 - Doctor: `a2dev doctor` — checks tools (rg/ctags/semgrep/gitleaks), runs a code quality audit, and prints next steps.
+- One-button install: `a2dev doctor --fix` — attempts to install missing tools (macOS: Homebrew; Debian/Ubuntu: apt + pipx; Windows: Chocolatey/Winget if available).
 - Setup menu: `a2dev quickstart` — 3 primary paths:
   - Start Fresh: create PRD and assess (Greenfield)
   - I come prepared: assess an existing PRD
