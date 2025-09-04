@@ -22,6 +22,19 @@ Python path (optional)
   - `python3 a2dev_cli.py plan docs/PRD.md`
   - `python3 a2dev_cli.py pm story 1`
 
+Modes: Greenfield vs Brownfield
+- Greenfield (new app)
+  - Author `docs/PRD.md` (use the template if needed).
+  - `a2dev assess docs/PRD.md` → backlog + epics.
+  - `a2dev pm story 1` (add `--scaffold` to create stubs).
+  - Iterate: update PRD/backlog, re-run assess, continue PM pipeline.
+- Brownfield (existing app with users)
+  - Inventory: `a2dev brownfield-inventory` → writes `docs/analyst/brownfield-inventory.{json,md}` (languages, manifests, infra, deps).
+  - Architecture snapshot: `a2dev arch-brownfield --name "Your App"` → `docs/architecture/brownfield-architecture.md`.
+  - Assessment: `a2dev assess-brownfield --name "Your App"` → `docs/analyst/brownfield-assessment.md`.
+  - Update PRD: integrate findings into `docs/PRD.md` (Current State, Constraints, Risks) then run `a2dev assess docs/PRD.md`.
+  - Continue with PM pipeline: `a2dev pm next` or `a2dev pm story <id>`.
+
 What You Get
 - `docs/backlog.json` — epics/stories parsed from the PRD.
 - `docs/epics.md` — human‑readable outline.
