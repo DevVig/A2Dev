@@ -1,0 +1,31 @@
+{
+  "languages": {
+    "python": 39,
+    "javascript": 2,
+    "typescript": 2,
+    "shell": 1
+  },
+  "manifests": [
+    "package.json",
+    "pyproject.toml"
+  ],
+  "infra": [],
+  "dependencies": {
+    "npm": [
+      {
+        "path": "package.json",
+        "dependencies": {},
+        "devDependencies": {},
+        "scripts": {
+          "build:pyz": "python3 scripts/build_pyz.py",
+          "postinstall": "node scripts/postinstall.js"
+        }
+      }
+    ],
+    "python": [
+      {
+        "path": "pyproject.toml"
+      }
+    ]
+  }
+}

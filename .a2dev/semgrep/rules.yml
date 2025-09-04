@@ -1,0 +1,27 @@
+rules:
+  - id: py-dangerous-eval
+    languages: [python]
+    message: Avoid eval/exec; use safe parsing.
+    severity: ERROR
+    pattern-either:
+      - pattern: eval($X)
+      - pattern: exec($X)
+
+  - id: py-shell-true
+    languages: [python]
+    message: Avoid shell=True in subprocess to prevent injection.
+    severity: ERROR
+    patterns:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+      - metavariable-regex:
+          metavariable: $FUNC
+          regex: (run|Popen|call|check_call|check_output)
+
+  - id: py-unsafe-yaml-load
+    languages: [python]
+    message: Use safe_load instead of load for YAML.
+    severity: ERROR
+    patterns:
+      - pattern: yaml.load($X)
+      - pattern-not: yaml.load($X, Loader=yaml.SafeLoader)
+

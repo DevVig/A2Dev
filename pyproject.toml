@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "a2dev"
+version = "0.1.0"
+description = "Agile ADDIE Dev Framework (A2Dev): local-first, PM-led orchestration for Codex CLI/IDE/Web"
+readme = "README_A2Dev.md"
+requires-python = ">=3.10"
+keywords = ["agile", "ADDIE", "codex", "agents", "orchestration", "cli"]
+authors = [{ name = "A2Dev Maintainers" }]
+license = { text = "MIT" }
+
+[project.scripts]
+a2dev = "a2a.cli:main"
+
+[tool.hatch.build]
+include = [
+  "a2a/**",
+  "a2dev_cli.py",
+  "a2a_cli.py",
+  "README_A2Dev.md",
+  "AGENTS.md",
+  ".a2dev/**",
+  "docs/PRD_SAMPLE.md",
+  "scripts/**",
+  "tools/**",
+]

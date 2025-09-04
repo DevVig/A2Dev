@@ -1,0 +1,8 @@
+{
+  "current_story_id": 2,
+  "backlog_path": "docs/backlog.json",
+  "ux_dir": "docs/ux",
+  "features_dir": "features",
+  "phase": "develop",
+  "active_role": "pm"
+}
