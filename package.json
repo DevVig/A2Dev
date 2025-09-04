@@ -1,6 +1,6 @@
 {
   "name": "a2dev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Agile ADDIE Dev Framework (A2Dev): local-first, PM-led orchestration for Codex CLI/IDE/Web",
   "keywords": [
