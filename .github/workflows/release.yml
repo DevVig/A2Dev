@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Build pyz
+        run: python3 scripts/build_pyz.py
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  release-artifact:
+    runs-on: ubuntu-latest
+    needs: publish-npm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Build pyz
+        run: python3 scripts/build_pyz.py
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: a2dev.pyz
+          body_path: .github/RELEASE_TEMPLATE.md
