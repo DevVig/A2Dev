@@ -128,6 +128,7 @@ Keep responses concise, include next‑step options, and never simulate tool beh
 
 JSON output (optional)
 - Set `A2DEV_OUTPUT=json` in the tool environment to receive structured JSON events from `route` instead of plain text. This is useful for rendering menus, cards, or state in your UI.
+- Each JSON event may include a `suggestions` array with `{label, command}` items you can surface as buttons or quick replies.
 
 2) pm_next
 {

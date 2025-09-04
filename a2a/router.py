@@ -123,3 +123,5 @@ def parse_route(text: str) -> Optional[Route]:
             return Route(role="spm", cmd="stabilize", arg=rest)
         if cmd in {"propose", "proposals", "stabilization"}:
             return Route(role="spm", cmd="propose", arg=rest)
+        if cmd in {"audit"}:
+            return Route(role="spm", cmd="audit", arg=rest)
