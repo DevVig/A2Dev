@@ -1872,6 +1872,40 @@ def main(argv: List[str] | None = None) -> None:
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
                 _emit({"role": "pm", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving PM mode. Active role: {st.active_role}")
                 return
+            if route.cmd == "accept-proposals":
+                # Accept merge proposals into backlog.json (optionally filtered by ids in arg)
+                from .storage import read_backlog as _rb, write_backlog as _wb
+                out_dir = Path("docs/proposals")
+                pj = out_dir / "proposed-backlog.json"
+                if not pj.exists():
+                    raise SystemExit("No proposed-backlog.json found. Run '@pm proposals' first.")
+                from .schema import Backlog as _Backlog
+                enriched = _Backlog.from_json(pj.read_text())
+                prop_map = {s.id: s for e in enriched.epics for s in e.stories}
+                # Parse accept ids if provided
+                accept_ids = set()
+                if route.arg:
+                    for tok in route.arg.replace(" ", "").split(","):
+                        if tok.isdigit():
+                            accept_ids.add(int(tok))
+                cur = _rb()
+                if not cur:
+                    raise SystemExit("No backlog found.")
+                updated = []
+                for e in cur.epics:
+                    for s in e.stories:
+                        if s.id in prop_map and (not accept_ids or s.id in accept_ids):
+                            ps = prop_map[s.id]
+                            s.estimate = ps.estimate
+                            s.priority = ps.priority
+                            updated.append(s.id)
+                backup = Path("docs/backlog.backup.json"); backup.write_text(cur.to_json()); _wb(cur)
+                st = read_state(); st.active_role = "pm"; write_state(st)
+                _emit({
+                    "role": "pm", "cmd": "accept-proposals", "active_role": "pm", "status": "ok",
+                    "updated": sorted(updated), "backup": str(backup)
+                }, f"Merged proposals into docs/backlog.json (backup: {backup}); updated: {sorted(updated)}")
+                return
             if route.cmd in ("develop", "prepare"):
                 # Resolve 'next' or 'continue' intents
                 backlog = read_backlog()
