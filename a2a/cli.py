@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
+import stat
+import sys
 from pathlib import Path
 from typing import List
 
@@ -39,6 +43,84 @@ from .storage import (
     write_ux_doc,
 )
 
+
+def _print_welcome() -> None:
+    art = r"""
+      ___   ____   ____            
+     / _ | / __ \ / __ \  _   _  __
+    / __ |/ /_/ // /_/ / | | / |/ /
+   /_/ |_|\____/ \____/  |_|/__/__/  A2Dev — Agile ADDIE Dev Framework
+    """
+    print(art)
+
+
+def _print_next_steps(dest: Path) -> None:
+    print("\nNext steps:")
+    print("- Copy sample env: cp .env.example .env.local")
+    print("- Bootstrap checks: a2dev bootstrap")
+    print("- Prepare a story: a2dev pm story 1")
+    print("- Optional pre-commit: cp .a2dev/hooks/pre-commit.sample .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit")
+    readme = dest / "README_A2Dev.md"
+    if readme.exists():
+        print(f"- Read the guide: {readme}")
+
+
+def _run_setup_menu(dest: Path) -> None:
+    while True:
+        print("\nSetup Menu — choose an option:")
+        print("  1) Copy .env.example → .env.local")
+        print("  2) Run bootstrap checks")
+        print("  3) Install pre-commit hook (gitleaks + semgrep)")
+        print("  4) Show Quick Start commands")
+        print("  5) Exit")
+        try:
+            choice = input("> ").strip()
+        except EOFError:
+            print()
+            break
+        if choice == "1":
+            src = dest / ".env.example"
+            dst = dest / ".env.local"
+            if dst.exists():
+                print("- .env.local already exists; skipping")
+            elif src.exists():
+                shutil.copy2(src, dst)
+                print("- Created .env.local from template")
+            else:
+                print("- .env.example not found; skipping")
+        elif choice == "2":
+            try:
+                py = sys.executable or "python3"
+                import subprocess
+                subprocess.run([py, str(dest / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
+            except Exception as e:
+                print(f"- Bootstrap failed to start: {e}")
+        elif choice == "3":
+            hook_src = dest / ".a2dev" / "hooks" / "pre-commit.sample"
+            hooks_dir = dest / ".git" / "hooks"
+            hook_dst = hooks_dir / "pre-commit"
+            try:
+                hooks_dir.mkdir(parents=True, exist_ok=True)
+                if hook_src.exists():
+                    shutil.copy2(hook_src, hook_dst)
+                    mode = os.stat(hook_dst).st_mode
+                    os.chmod(hook_dst, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    print(f"- Installed pre-commit hook at {hook_dst}")
+                else:
+                    print("- Sample hook not found; ensure A2Dev files are present")
+            except Exception as e:
+                print(f"- Failed to install pre-commit hook: {e}")
+        elif choice == "4":
+            print("\nQuick Start:")
+            print("- npx a2dev install")
+            print("- a2dev bootstrap")
+            print("- cp .env.example .env.local")
+            print("- a2dev pm story 1 --scaffold")
+        elif choice == "5":
+            _print_next_steps(dest)
+            break
+        else:
+            print("- Invalid choice; enter 1-5")
 
 def cmd_plan(prd_path: str) -> None:
     ensure_dirs()
@@ -335,9 +417,10 @@ def main(argv: List[str] | None = None) -> None:
 
     p_init = sub.add_parser("init", help="Initialize A2Dev files into a project")
     p_init.add_argument("--dest", default=".", help="Destination project root (default: .)")
-    p_install = sub.add_parser("install", help="Install (init + optional bootstrap)")
+    p_install = sub.add_parser("install", help="Install (init + optional bootstrap + setup menu)")
     p_install.add_argument("--dest", default=".", help="Destination project root (default: .)")
     p_install.add_argument("--no-bootstrap", action="store_true", help="Skip bootstrap checks")
+    p_install.add_argument("--no-setup", action="store_true", help="Skip interactive setup menu")
 
     p_uninst = sub.add_parser("uninstall", help="Uninstall A2Dev scaffolding from a project (conservative)")
     p_uninst.add_argument("--dest", default=".", help="Target project root (default: .)")
@@ -807,6 +890,8 @@ def main(argv: List[str] | None = None) -> None:
         # AGENTS.md
         copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
         print(f"A2Dev initialized in {dest}")
+        _print_welcome()
+        _print_next_steps(dest)
     elif args.cmd == "install":
         # Install = init + (optional) bootstrap
         argv2 = ["--dest", args.dest]
@@ -841,6 +926,7 @@ def main(argv: List[str] | None = None) -> None:
         copy_if_absent(repo_root / "a2a_cli.py", dest / "a2a_cli.py")
         copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
         print(f"A2Dev installed into {dest}")
+        _print_welcome()
         if not args.no_bootstrap:
             print("Running bootstrap checks...")
             # Call bootstrap in the destination
@@ -850,6 +936,14 @@ def main(argv: List[str] | None = None) -> None:
                 subprocess.run([py, str(dest / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
             except Exception:
                 pass
+        if not args.no_setup and sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                _run_setup_menu(dest)
+            except Exception:
+                # Non-fatal; still show next steps
+                pass
+        else:
+            _print_next_steps(dest)
     elif args.cmd == "uninstall":
         target = Path(args.dest).resolve()
         # Conservative list of files/dirs to remove
