@@ -1903,8 +1903,12 @@ def main(argv: List[str] | None = None) -> None:
                 st = read_state(); st.active_role = "pm"; write_state(st)
                 _emit({
                     "role": "pm", "cmd": "accept-proposals", "active_role": "pm", "status": "ok",
-                    "updated": sorted(updated), "backup": str(backup)
-                }, f"Merged proposals into docs/backlog.json (backup: {backup}); updated: {sorted(updated)}")
+                    "updated": sorted(updated), "backup": str(backup),
+                    "suggestions": [
+                        {"label": "PM Proposals", "command": "@pm proposals"},
+                        {"label": "PM Next", "command": "@pm next"}
+                    ]
+                }, f"Merged proposals into docs/backlog.json (backup: {backup}); updated: {sorted(updated)}\nSuggestions: @pm proposals | @pm next")
                 return
             if route.cmd in ("develop", "prepare"):
                 # Resolve 'next' or 'continue' intents
@@ -1931,13 +1935,28 @@ def main(argv: List[str] | None = None) -> None:
                     print(pm_develop_guidance(int(sid or 1)))
                 if route.cmd == "prepare":
                     cmd_prepare_story(int(sid or 1))
-                    summary = {"role": "pm", "cmd": "prepare", "story_id": int(sid or 1), "active_role": "pm", "status": "ok"}
+                    summary = {"role": "pm", "cmd": "prepare", "story_id": int(sid or 1), "active_role": "pm", "status": "ok",
+                               "suggestions": [
+                                   {"label": "Develop Story", "command": f"@pm develop {int(sid or 1)}"},
+                                   {"label": "PM Next", "command": "@pm next"}
+                               ]}
                 else:
                     orch = Orchestrator()
                     result = orch.prepare_story(int(sid or 1), also_scaffold=False)
                     if not json_mode:
                         print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
                         print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+                    # Dynamic suggestions based on gate result
+                    suggestions = (
+                        [
+                            {"label": "Sustain Story", "command": f"@spm sustain {int(sid or 1)}"},
+                            {"label": "PM Next", "command": "@pm next"},
+                            {"label": "PM Proposals", "command": "@pm proposals"}
+                        ] if result.get("gate") else [
+                            {"label": "Analyst Help", "command": "@analyst help"},
+                            {"label": "PM Help", "command": "@pm help"}
+                        ]
+                    )
                     summary = {
                         "role": "pm",
                         "cmd": "develop",
@@ -1948,7 +1967,8 @@ def main(argv: List[str] | None = None) -> None:
                         "issues": result.get("issues", []),
                         "agents": result.get("agents", []),
                         "artifacts": result.get("artifacts", {}),
-                        "referenced": result.get("referenced", [])
+                        "referenced": result.get("referenced", []),
+                        "suggestions": suggestions
                     }
                 st = read_state(); st.active_role = "pm"; write_state(st)
                 _emit(summary)
@@ -1987,16 +2007,41 @@ def main(argv: List[str] | None = None) -> None:
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
                 _emit({"role": "spm", "cmd": "exit", "active_role": st.active_role, "status": "ok"}, f"Leaving sPM mode. Active role: {st.active_role}")
                 return
+            if route.cmd == "audit":
+                dest = Path(".").resolve()
+                out = _run_quality_audit(dest)
+                st = read_state(); st.active_role = "spm"; write_state(st)
+                _emit({
+                    "role": "spm", "cmd": "audit", "active_role": "spm", "status": "ok", "report": out,
+                    "suggestions": [
+                        {"label": "Stabilize", "command": "@spm stabilize"},
+                        {"label": "Propose Stabilization", "command": "@spm propose"},
+                        {"label": "PM Proposals", "command": "@pm proposals"}
+                    ]
+                }, f"Quality audit written: {out}\nSuggestions: @spm stabilize | @spm propose | @pm proposals")
+                return
             if route.cmd == "stabilize":
                 dest = Path(".").resolve()
                 out = _spm_generate_maintenance_plan(dest)
                 st = read_state(); st.active_role = "spm"; write_state(st)
-                _emit({"role": "spm", "cmd": "stabilize", "active_role": "spm", "status": "ok", "plan": out}, f"Maintenance plan written: {out}")
+                _emit({
+                    "role": "spm", "cmd": "stabilize", "active_role": "spm", "status": "ok", "plan": out,
+                    "suggestions": [
+                        {"label": "Propose Stabilization Stories", "command": "@spm propose"},
+                        {"label": "PM Proposals", "command": "@pm proposals"}
+                    ]
+                }, f"Maintenance plan written: {out}\nSuggestions: @spm propose | @pm proposals")
                 return
             if route.cmd == "propose":
                 updated = _spm_propose_stabilization()
                 st = read_state(); st.active_role = "spm"; write_state(st)
-                _emit({"role": "spm", "cmd": "propose", "active_role": "spm", "status": "ok", "stories": updated}, f"Stabilization stories proposed/updated: {updated}")
+                _emit({
+                    "role": "spm", "cmd": "propose", "active_role": "spm", "status": "ok", "stories": updated,
+                    "suggestions": [
+                        {"label": "PM Proposals", "command": "@pm proposals"},
+                        {"label": "PM Accept Proposals", "command": "@pm accept"}
+                    ]
+                }, f"Stabilization stories proposed/updated: {updated}\nSuggestions: @pm proposals | @pm accept")
                 return
             if route.cmd == "sustain":
                 if not json_mode:
@@ -2009,6 +2054,15 @@ def main(argv: List[str] | None = None) -> None:
                     print("Sustain: Gate PASS" if ok else "Sustain: Gate FAIL\n- " + "\n- ".join(issues))
                     state = read_state()
                     print(format_status_line(state.phase, "sPM", [], [], checked, gate=("PASS" if ok else "FAIL")))
+                suggestions = (
+                    [
+                        {"label": "PM Next", "command": "@pm next"},
+                        {"label": "PM Proposals", "command": "@pm proposals"}
+                    ] if ok else [
+                        {"label": "Stabilize", "command": "@spm stabilize"},
+                        {"label": "Propose Stabilization", "command": "@spm propose"}
+                    ]
+                )
                 _emit({
                     "role": "spm",
                     "cmd": "sustain",
@@ -2017,7 +2071,8 @@ def main(argv: List[str] | None = None) -> None:
                     "status": "ok",
                     "gate": bool(ok),
                     "issues": issues,
-                    "referenced": checked
+                    "referenced": checked,
+                    "suggestions": suggestions
                 })
                 st = read_state(); st.active_role = "spm"; write_state(st)
                 return
