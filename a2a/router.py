@@ -110,8 +110,12 @@ def parse_route(text: str) -> Optional[Route]:
             return Route(role="pm", cmd="develop", arg=cmd)
         if cmd == "scaffold":
             return Route(role="pm", cmd="prepare", arg=(rest or "next"))
+        if cmd in {"proposals", "plan"}:
+            return Route(role="pm", cmd="proposals", arg=rest or "")
 
     # sPM conversational intents
     if role == "spm":
         if cmd in {"stabilize", "bugs", "maintenance", "maintain"}:
             return Route(role="spm", cmd="stabilize", arg=rest)
+        if cmd in {"propose", "proposals", "stabilization"}:
+            return Route(role="spm", cmd="propose", arg=rest)
