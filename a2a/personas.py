@@ -5,11 +5,13 @@ from typing import List
 
 def analyst_assess_guidance(prd_path: str) -> str:
     return (
-        "Analyst here. I'll draft a brief from the PRD, generate a backlog, and then hand you off to the PM for development.\n"
-        f"- PRD: {prd_path}\n"
-        "- Next: We will confirm epics/stories and acceptance criteria, then move to develop phase.\n"
-        "- You can interrupt or refine at any time (e.g., add ACs, rename stories).\n"
-        "- Choices: (1) pm next  (2) setup  (3) timeline assess"
+        "Analyst here. I’ll guide assessment (brief + backlog) before handing off to PM.\n"
+        f"- Target PRD: {prd_path}\n"
+        "- Choose a starting path: Fresh (create PRD), Prepared (use existing PRD), or Codebase (brownfield).\n"
+        "- You can refine at any time (e.g., add ACs, rename stories).\n"
+        "- Suggested replies: '@analyst assess fresh' | '@analyst assess prepared docs/PRD.md' | '@analyst assess codebase'\n"
+        "- I’ll stay in Analyst mode until you switch (e.g., '@pm …') or '@analyst exit'.\n"
+        "- Quick tools: 'doctor' for readiness, 'setup' for menu"
     )
 
 
@@ -19,6 +21,7 @@ def pm_develop_guidance(story_id: int) -> str:
         f"- Story: {story_id}\n"
         "- Steps: UX → ADR → Deep Plan → QA → Threat → DevOps → Data → Trace → Shard → Gate.\n"
         "- If the gate fails (e.g., missing acceptance criteria), I’ll point out what to fix and we can iterate.\n"
+        f"- I’ll stay in PM mode until you switch roles or '@pm exit'.\n"
         f"- Choices: (1) pm continue  (2) setup  (3) timeline {story_id}"
     )
 
@@ -29,6 +32,7 @@ def spm_sustain_guidance(story_id: int) -> str:
         f"- Story: {story_id}\n"
         "- Steps: Check gate status, semgrep findings, rollout plan, and monitoring.\n"
         "- We can open follow‑ups for any gaps before marking sustainment complete.\n"
+        f"- I’ll stay in sPM mode until you switch roles or '@spm exit'.\n"
         f"- Choices: (1) gate {story_id}  (2) setup  (3) timeline {story_id}"
     )
 

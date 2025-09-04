@@ -1524,27 +1524,86 @@ def main(argv: List[str] | None = None) -> None:
             raise SystemExit("Could not parse route. Try '@analyst assess docs/PRD.md' or '*develop 2'.")
         # Guidance messaging
         if route.role == "analyst" and route.cmd == "assess":
-            print(analyst_assess_guidance(route.arg))
-            # reuse existing assess path
-            role = AnalystRole()
-            out = role.write("brief", role.brief_from_prd(route.arg))
-            print(f"Analyst brief written: {out}")
-            cmd_plan(route.arg)
-            state = read_state()
-            state.phase = "develop"
-            write_state(state)
-            print("Phase advanced to: develop")
-            print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [route.arg]))
-        elif route.role in ("pm", "sm") and route.cmd in ("develop", "prepare"):
-            print(pm_develop_guidance(int(route.arg)))
-            if route.cmd == "prepare":
-                cmd_prepare_story(int(route.arg))
+            arg = (route.arg or "").strip()
+            if not arg:
+                # Just show options without running assess
+                print(analyst_assess_guidance("docs/PRD.md"))
+                st = read_state(); st.active_role = "analyst"; write_state(st)
+                return
+            # Modes: fresh|greenfield|start, prepared [<path>], brownfield|codebase|existing
+            lower = arg.lower()
+            if lower in {"fresh", "greenfield", "start"}:
+                print(analyst_assess_guidance("docs/PRD.md"))
+                _flow_start_fresh(Path("."))
+            elif lower.startswith("prepared"):
+                # Allow: "prepared" or "prepared path/to/PRD.md"
+                parts = arg.split(maxsplit=1)
+                prd = parts[1] if len(parts) > 1 else "docs/PRD.md"
+                print(analyst_assess_guidance(prd))
+                # Assess existing PRD path
+                try:
+                    role = AnalystRole(); out = role.write("brief", role.brief_from_prd(prd)); print(f"Analyst brief written: {out}")
+                    cmd_plan(prd)
+                    state = read_state(); state.phase = "develop"; write_state(state)
+                    print("Phase advanced to: develop")
+                    print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [prd]))
+                finally:
+                    _print_codex_handoff()
+                st = read_state(); st.active_role = "analyst"; write_state(st)
+                return
+            elif lower in {"brownfield", "codebase", "existing"}:
+                print(analyst_assess_guidance("docs/PRD.md"))
+                _flow_brownfield_assess(Path("."))
+                st = read_state(); st.active_role = "analyst"; write_state(st)
+                return
             else:
-                orch = Orchestrator()
-                result = orch.prepare_story(int(route.arg), also_scaffold=False)
-                print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
+                # Default: treat arg as PRD path (existing behavior)
+                print(analyst_assess_guidance(arg or "docs/PRD.md"))
+                role = AnalystRole()
+                out = role.write("brief", role.brief_from_prd(arg or "docs/PRD.md"))
+                print(f"Analyst brief written: {out}")
+                cmd_plan(arg or "docs/PRD.md")
                 state = read_state()
-                print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+                state.phase = "develop"
+                write_state(state)
+                print("Phase advanced to: develop")
+                print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [arg or 'docs/PRD.md']))
+                _print_codex_handoff()
+                st = read_state(); st.active_role = "analyst"; write_state(st)
+                return
+        elif route.role == "analyst" and route.cmd == "help":
+            print(analyst_assess_guidance("docs/PRD.md"))
+            st = read_state(); st.active_role = "analyst"; write_state(st)
+            return
+        elif route.role == "analyst" and route.cmd == "exit":
+            st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
+            print(f"Leaving Analyst mode. Active role: {st.active_role}")
+            return
+        elif route.role in ("pm", "sm"):
+            if route.cmd == "help":
+                st = read_state(); st.active_role = "pm"; write_state(st)
+                try:
+                    sid = int(route.arg)
+                except Exception:
+                    sid = 1
+                print(pm_develop_guidance(sid))
+                return
+            if route.cmd == "exit":
+                st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
+                print(f"Leaving PM mode. Active role: {st.active_role}")
+                return
+            if route.cmd in ("develop", "prepare"):
+                print(pm_develop_guidance(int(route.arg)))
+                if route.cmd == "prepare":
+                    cmd_prepare_story(int(route.arg))
+                else:
+                    orch = Orchestrator()
+                    result = orch.prepare_story(int(route.arg), also_scaffold=False)
+                    print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
+                    state = read_state()
+                    print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
+                st = read_state(); st.active_role = "pm"; write_state(st)
+                return
         elif route.role == "dev" and route.cmd in ("develop", "prepare"):
             print("Dev: Preparing artifacts and scaffolding code (PM guides, Dev implements).")
             orch = Orchestrator()
@@ -1555,15 +1614,26 @@ def main(argv: List[str] | None = None) -> None:
                 print("Develop: Gate FAIL\n- " + "\n- ".join(result.get("issues", [])))
             state = read_state()
             print(format_status_line(state.phase, "Dev", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
-        elif route.role == "spm" and route.cmd == "sustain":
-            print(spm_sustain_guidance(int(route.arg)))
-            backlog = read_backlog()
-            if not backlog:
-                raise SystemExit("No backlog found. Run plan first.")
-            ok, issues, checked = gate_story(backlog, int(route.arg))
-            print("Sustain: Gate PASS" if ok else "Sustain: Gate FAIL\n- " + "\n- ".join(issues))
-            state = read_state()
-            print(format_status_line(state.phase, "sPM", [], [], checked, gate=("PASS" if ok else "FAIL")))
+        elif route.role == "spm":
+            if route.cmd == "help":
+                st = read_state(); st.active_role = "spm"; write_state(st)
+                print(spm_sustain_guidance(int(route.arg or "1")))
+                return
+            if route.cmd == "exit":
+                st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
+                print(f"Leaving sPM mode. Active role: {st.active_role}")
+                return
+            if route.cmd == "sustain":
+                print(spm_sustain_guidance(int(route.arg)))
+                backlog = read_backlog()
+                if not backlog:
+                    raise SystemExit("No backlog found. Run plan first.")
+                ok, issues, checked = gate_story(backlog, int(route.arg))
+                print("Sustain: Gate PASS" if ok else "Sustain: Gate FAIL\n- " + "\n- ".join(issues))
+                state = read_state()
+                print(format_status_line(state.phase, "sPM", [], [], checked, gate=("PASS" if ok else "FAIL")))
+                st = read_state(); st.active_role = "spm"; write_state(st)
+                return
         else:
             raise SystemExit(f"Unsupported route: role={route.role} cmd={route.cmd}")
 

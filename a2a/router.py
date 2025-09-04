@@ -41,13 +41,21 @@ def parse_route(text: str) -> Optional[Route]:
 
     tokens = s.split()
     if not tokens:
+        # Allow bare role mentions to trigger default flows
+        if role == "analyst":
+            return Route(role="analyst", cmd="assess", arg="")
+        if role == "pm":
+            # Default to develop next (caller may prompt further)
+            return Route(role="pm", cmd="develop", arg="1")
+        if role == "spm":
+            return Route(role="spm", cmd="sustain", arg="1")
         return None
 
     cmd = tokens[0].lower()
     rest = " ".join(tokens[1:]).strip()
 
     # Infer defaults
-    if cmd in {"assess", "develop", "sustain", "prepare"}:
+    if cmd in {"assess", "develop", "sustain", "prepare", "exit", "help"}:
         pass
     else:
         # Heuristic: if looks like a file path, treat as assess; if number, treat as develop
