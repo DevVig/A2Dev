@@ -6,6 +6,30 @@
 */
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
+
+function loadEnvLocal() {
+  try {
+    const candidates = [path.join(process.cwd(), '.env.local'), path.join(__dirname, '..', '.env.local')];
+    for (const p of candidates) {
+      try {
+        if (!fs.existsSync(p)) continue;
+        const content = fs.readFileSync(p, 'utf8');
+        for (const raw of content.split(/\r?\n/)) {
+          const line = raw.trim();
+          if (!line || line.startsWith('#') || !line.includes('=')) continue;
+          const idx = line.indexOf('=');
+          const key = line.slice(0, idx).trim();
+          let val = line.slice(idx + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (!(key in process.env)) process.env[key] = val;
+        }
+      } catch {}
+    }
+  } catch {}
+}
 
 function copyIfAbsent(src, dst) {
   if (!fs.existsSync(src)) return;
@@ -22,6 +46,7 @@ function copyIfAbsent(src, dst) {
 }
 
 function main() {
+  loadEnvLocal();
   const dest = process.env.INIT_CWD || process.cwd();
   const pkgRoot = __dirname ? path.resolve(__dirname, '..') : process.cwd();
 
@@ -54,6 +79,8 @@ function main() {
   copyIfAbsent(path.join(pkgRoot, 'a2a_cli.py'), path.join(dest, 'a2a_cli.py'));
   // AGENTS.md
   copyIfAbsent(path.join(pkgRoot, 'AGENTS.md'), path.join(dest, 'AGENTS.md'));
+  // Env example (do not auto‑create .env.local)
+  copyIfAbsent(path.join(pkgRoot, '.env.example'), path.join(dest, '.env.example'));
 
   console.log(`[A2Dev] Initialized into ${dest}`);
 

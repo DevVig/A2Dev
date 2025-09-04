@@ -29,8 +29,8 @@
           "title": "As a user, I can sign up with email and password.",
           "description": "",
           "acceptance_criteria": [],
-          "estimate": 1.0,
-          "priority": "must",
+          "estimate": null,
+          "priority": "should",
           "dependencies": [],
           "risks": []
         },
@@ -40,7 +40,7 @@
           "title": "As a user, I can sign in and sign out.",
           "description": "",
           "acceptance_criteria": [],
-          "estimate": 1.0,
+          "estimate": null,
           "priority": "should",
           "dependencies": [],
           "risks": []

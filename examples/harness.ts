@@ -5,6 +5,8 @@
 //
 // Run (with ts-node): npx ts-node examples/harness.ts route '{"text":"@pm develop 2"}'
 // Or (interactive): npx ts-node examples/harness.ts
+// Note: tools prefer the Node wrapper `a2dev` (via npx or global),
+// and will fall back to `python3 a2dev_cli.py` if not available.
 
 import { tools } from './codex-tools';
 
@@ -46,4 +48,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

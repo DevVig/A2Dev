@@ -4,22 +4,23 @@ Overview
 - Purpose: a lightweight agent‑to‑agent (A2A) scaffold where a PM role orchestrates planning and delivery. It favors tools with typed IO and repo‑persisted artifacts over opaque nested agents.
 - Roles: PM coordinator (planning, routing), UX (flows/specs), Eng (scaffold/impl stubs). All outputs are stored under `docs/` and state under `.a2dev/`.
 
-Quick Start
-- Install into an existing project (optional): `python3 scripts/install_a2dev.py --dest .`
-- Create or edit a PRD at `docs/PRD.md` (or use the sample at `docs/PRD_SAMPLE.md`).
-- Plan backlog: `python3 a2dev_cli.py plan docs/PRD.md`
-- Generate UX for story 1: `python3 a2dev_cli.py ux 1`
-- Start building story 1: `python3 a2dev_cli.py start 1`
- - Architecture ADR: `python3 a2dev_cli.py arch 1`
- - Deep plan: `python3 a2dev_cli.py plan-deep 1`
- - QA plan: `python3 a2dev_cli.py qa-plan 1`
- - Threat model: `python3 a2dev_cli.py threat 1`
- - DevOps plan: `python3 a2dev_cli.py devops-plan 1`
- - Analytics spec: `python3 a2dev_cli.py data-plan 1`
- - Traceability: `python3 a2dev_cli.py trace 1`
- - Shard story: `python3 a2dev_cli.py shard 1`
- - Gate check: `python3 a2dev_cli.py gate 1`
- - One-shot prep: `python3 a2dev_cli.py prepare-story 1`
+Key Features
+- PM‑led pipeline: assess → develop → sustain with clear gates.
+- One‑shot prepare: generates UX, ADR, deep plan, QA, security, DevOps, data, trace, and shard per story.
+- File‑first: human‑readable artifacts under `docs/*`; repeatable, reviewable, and VCS‑friendly.
+- Local‑first and dependency‑light: no network calls by default; optional scans (semgrep/gitleaks).
+- Node wrapper + Python core: `npx a2dev` for convenience; Python CLI available where Node isn’t.
+
+Quick Start (Node-first)
+- npx (no install): `npx a2dev install` then `a2dev pm story 1`
+- Global (optional): `npm i -g a2dev` then `a2dev pm story 1`
+- `.env.local` is loaded automatically; copy `.env.example` and fill it.
+
+Python path (optional)
+- For environments without Node/npm, you can still run:
+  - `python3 a2dev_cli.py install --dest .`
+  - `python3 a2dev_cli.py plan docs/PRD.md`
+  - `python3 a2dev_cli.py pm story 1`
 
 What You Get
 - `docs/backlog.json` — epics/stories parsed from the PRD.
@@ -63,15 +64,25 @@ Structure
 - `a2dev_cli.py` — primary CLI entry
 - `docs/` — PRD, backlog, UX docs
 - `features/` — code scaffold per story
+ - See `CONTRIBUTING.md` and `SECURITY.md` for project policies.
 
 Requirements
 - Python 3.10+
 - Recommended tools: `ripgrep` (`rg`), `universal-ctags` (`ctags`), `semgrep`, `gitleaks`.
 - Optional env: `A2A_MODEL_TIER=high|medium|low` (Codex tier hint).
 
+Secrets (.env.local)
+- Copy `.env.example` to `.env.local` and fill in values.
+- Supported keys: `GITHUB_TOKEN`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OLLAMA_HOST`.
+- `.env.local` is ignored by git; loaders are built-in (no extra deps) for both Python and Node entrypoints.
+
+Pre-commit Hook (optional)
+- Copy `.a2dev/hooks/pre-commit.sample` to `.git/hooks/pre-commit` and `chmod +x .git/hooks/pre-commit`.
+- This runs gitleaks (secrets) and semgrep (static analysis) before each commit.
+
 Installation
 - Option A — Script (recommended for existing repos)
-  - `python3 scripts/install_a2dev.py --dest /path/to/project`
+  - `python3 a2dev_cli.py install --dest /path/to/project`
   - Creates `.a2dev/` (policies, semgrep), copies `a2dev_cli.py`, PR template, and a sample `docs/PRD.md` if missing.
 - Option B — Manual
   - Copy `.a2dev/`, `a2dev_cli.py`, `AGENTS.md`, and `docs/PRD_SAMPLE.md` into your repo.
@@ -133,6 +144,12 @@ Security & Quality (local‑first)
 - Policies: `.a2dev/policies/` (Coding Standards, Code Review, Secure Coding, DoR, DoD)
 - PR template: `.github/pull_request_template.md` references the policies.
 
+Gate Criteria (what must exist per story)
+- Acceptance criteria in `docs/backlog.json` and/or `docs/stories/story-<id>.md`.
+- Required artifacts: UX, ADR, Deep Plan, QA Plan, Threat Model, DevOps Plan, Analytics Spec, Trace, and Story Shard.
+- Static analysis: if `docs/security/semgrep/story-<id>.json` exists — no high severity findings.
+- Secrets: if `docs/security/secrets/story-<id>.json` exists — zero findings.
+
 README Best Practices (for your projects)
 - Title: clear, concise project name.
 - One‑liner: what it does in one sentence and who it’s for.
@@ -171,7 +188,7 @@ One-liner install (npx style)
 Installation Guide (CLI, IDE, Web)
 - CLI
   - Prereqs: Python 3.10+, optional tools: `ripgrep`, `ctags`, `semgrep`, `gitleaks`.
-  - Install: `git clone <this repo>` then `python3 scripts/install_a2dev.py --dest /path/to/project`.
+  - Install: `git clone <this repo>` then `python3 a2dev_cli.py install --dest /path/to/project`.
   - Use: in your project root run A2Dev commands, e.g., `python3 a2dev_cli.py route "@analyst assess docs/PRD.md"`.
 - IDE (Codex)
   - Open your project in Codex IDE. Ensure `a2dev_cli.py` is at project root.
@@ -204,3 +221,16 @@ Proposals & Sprints Overview
   - Plan: `python3 a2dev_cli.py pm-sprints --capacity 20 --weeks 2`
   - Outputs:
     - `docs/sprints/sprint-<n>.md` and overall `docs/sprints/plan.md`
+
+Command Summary
+- `a2dev install` — initialize A2Dev files into the current project.
+- `a2dev bootstrap` — check environment and suggest installs for `rg`, `ctags`, `semgrep`, `gitleaks`.
+- `a2dev assess docs/PRD.md` — parse PRD and generate backlog + epics.
+- `a2dev pm story <id>` — orchestrate artifacts and run gate; `--scaffold` to create code stub.
+- `a2dev pm next|continue` — pick/continue a story by heuristic and prepare it.
+- `a2dev story-proposals gen|refine|accept` — enrich backlog, plan sprints, and merge accepted estimates/priorities.
+- `a2dev pm-sprints --capacity 20 --weeks 2` — plan sprints from current backlog.
+- `a2dev gate <id>` — check gate criteria for a story.
+- `a2dev timeline <assess|id>` — show assess/story timeline.
+- `a2dev smoke` — minimal end‑to‑end smoke.
+- `a2dev uninstall [--force]` — conservative removal of installed files.
