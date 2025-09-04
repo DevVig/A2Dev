@@ -22,6 +22,7 @@ from .gate import gate_story
 from .roles.analyst import AnalystRole
 from .trace import generate_trace
 from .orchestrator import Orchestrator
+from .mcp import SemgrepAdapter, GitleaksAdapter
 from .phases import PHASES, RECOMMENDED_ROLES
 from .storage import write_state
 from .personas import (
@@ -68,17 +69,29 @@ def _print_next_steps(dest: Path) -> None:
 def _run_setup_menu(dest: Path) -> None:
     while True:
         print("\nSetup Menu — choose an option:")
-        print("  1) Copy .env.example → .env.local")
-        print("  2) Run bootstrap checks")
-        print("  3) Install pre-commit hook (gitleaks + semgrep)")
-        print("  4) Show Quick Start commands")
-        print("  5) Exit")
+        print("  1) Greenfield: assess PRD and prepare story")
+        print("  2) Brownfield: inventory and assessment")
+        print("  3) Code Quality Audit (semgrep + gitleaks)")
+        print("  4) Plan Proposals/Sprints")
+        print("  5) Copy .env.example → .env.local")
+        print("  6) Run bootstrap checks")
+        print("  7) Install pre-commit hook (gitleaks + semgrep)")
+        print("  8) Show Quick Start commands")
+        print("  9) Exit")
         try:
             choice = input("> ").strip()
         except EOFError:
             print()
             break
         if choice == "1":
+            _flow_greenfield(dest)
+        elif choice == "2":
+            _flow_brownfield(dest)
+        elif choice == "3":
+            _run_quality_audit(dest)
+        elif choice == "4":
+            _flow_plan_proposals(dest)
+        elif choice == "5":
             src = dest / ".env.example"
             dst = dest / ".env.local"
             if dst.exists():
@@ -88,14 +101,14 @@ def _run_setup_menu(dest: Path) -> None:
                 print("- Created .env.local from template")
             else:
                 print("- .env.example not found; skipping")
-        elif choice == "2":
+        elif choice == "6":
             try:
                 py = sys.executable or "python3"
                 import subprocess
                 subprocess.run([py, str(dest / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
             except Exception as e:
                 print(f"- Bootstrap failed to start: {e}")
-        elif choice == "3":
+        elif choice == "7":
             hook_src = dest / ".a2dev" / "hooks" / "pre-commit.sample"
             hooks_dir = dest / ".git" / "hooks"
             hook_dst = hooks_dir / "pre-commit"
@@ -110,17 +123,189 @@ def _run_setup_menu(dest: Path) -> None:
                     print("- Sample hook not found; ensure A2Dev files are present")
             except Exception as e:
                 print(f"- Failed to install pre-commit hook: {e}")
-        elif choice == "4":
+        elif choice == "8":
             print("\nQuick Start:")
             print("- npx a2dev install")
             print("- a2dev bootstrap")
             print("- cp .env.example .env.local")
             print("- a2dev pm story 1 --scaffold")
-        elif choice == "5":
+        elif choice == "9":
             _print_next_steps(dest)
             break
         else:
             print("- Invalid choice; enter 1-5")
+
+
+def _ensure_prd(dest: Path) -> Path:
+    prd = dest / "docs" / "PRD.md"
+    if not prd.exists():
+        try:
+            # Try sample template first
+            sample = dest / "docs" / "PRD_SAMPLE.md"
+            if sample.exists():
+                shutil.copy2(sample, prd)
+            else:
+                from .roles.analyst import AnalystRole
+                prd.parent.mkdir(parents=True, exist_ok=True)
+                prd.write_text(AnalystRole().prd_template("Project"))
+        except Exception:
+            pass
+    return prd
+
+
+def _flow_greenfield(dest: Path) -> None:
+    prd = _ensure_prd(dest)
+    print(f"- Using PRD: {prd}")
+    try:
+        cmd_plan(str(prd))
+    except Exception as e:
+        print(f"- Assess failed: {e}")
+        return
+    # Offer to prepare next story
+    try:
+        ans = input("Prepare next story now? (y/N) ").strip().lower()
+    except EOFError:
+        ans = "n"
+    if ans == "y":
+        bl = read_backlog()
+        if bl:
+            pm = PMCoordinator()
+            s = pm.select_next_story(bl)
+            if s:
+                try:
+                    sc = input("Scaffold code? (y/N) ").strip().lower() == "y"
+                except EOFError:
+                    sc = False
+                orch = Orchestrator()
+                result = orch.prepare_story(s.id, also_scaffold=sc)
+                print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
+    print("- Greenfield flow complete.")
+
+
+def _flow_brownfield(dest: Path) -> None:
+    # Inventory
+    try:
+        from .inventory import write_inventory
+        paths = write_inventory(str(dest))
+        print("- Inventory written:\n  - " + "\n  - ".join(paths.values()))
+    except Exception as e:
+        print(f"- Inventory failed: {e}")
+    # Architecture snapshot
+    try:
+        role = ArchitectureRole()
+        out_dir = Path("docs/architecture"); out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / "brownfield-architecture.md"
+        out.write_text(role.generate_brownfield_arch("Brownfield System"))
+        print(f"- Brownfield architecture: {out}")
+    except Exception as e:
+        print(f"- Brownfield architecture failed: {e}")
+    # Assessment template
+    try:
+        out_dir = Path("docs/analyst"); out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / "brownfield-assessment.md"
+        out.write_text(
+            """# Brownfield Assessment — Your App
+
+## Inventory
+- Components/services/modules and owners.
+
+## Integrations
+- External/internal systems and contracts.
+
+## Risks & Tech Debt
+- Hotspots and deprecations.
+
+## Migration Candidates
+- Opportunities, quick wins, long-term refactors.
+"""
+        )
+        print(f"- Brownfield assessment: {out}")
+    except Exception as e:
+        print(f"- Brownfield assessment failed: {e}")
+    # Offer assess now
+    try:
+        ans = input("Run assess now to update backlog from PRD? (y/N) ").strip().lower()
+    except EOFError:
+        ans = "n"
+    if ans == "y":
+        prd = _ensure_prd(dest)
+        try:
+            cmd_plan(str(prd))
+        except Exception as e:
+            print(f"- Assess failed: {e}")
+    print("- Brownfield flow complete.")
+
+
+def _run_quality_audit(dest: Path) -> str:
+    # Semgrep
+    sem = SemgrepAdapter().scan(root=str(dest), config=str(Path('.a2dev/semgrep/rules.yml')) if Path('.a2dev/semgrep/rules.yml').exists() else 'auto')
+    # Gitleaks
+    leaks = GitleaksAdapter().scan(root=str(dest))
+    # Summarize
+    high = med = low = 0
+    if isinstance(sem, dict) and sem.get('status') not in {'skipped', 'error'}:
+        res = sem.get('results', [])
+        for r in res:
+            sev = (r.get('extra', {}) or {}).get('severity')
+            if sev in ('ERROR', 'HIGH'):
+                high += 1
+            elif sev in ('WARNING', 'MEDIUM'):
+                med += 1
+            elif sev in ('INFO', 'LOW'):
+                low += 1
+    findings = 0
+    if isinstance(leaks, dict) and leaks.get('status') not in {'skipped', 'error'}:
+        arr = leaks.get('findings', [])
+        findings = len(arr) if isinstance(arr, list) else 0
+    out_dir = Path('docs/analyst'); out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / 'quality-audit.md'
+    lines = [
+        '# Code Quality Audit', '',
+        f'- Semgrep: high={high}, medium={med}, low={low} ({"skipped" if sem.get("status")=="skipped" else "ok"})',
+        f'- Gitleaks: findings={findings} ({"skipped" if leaks.get("status")=="skipped" else "ok"})',
+        '',
+        '## Recommendations',
+        '- Address any high-severity issues before new feature work.',
+        '- If secrets were detected, rotate and remove them immediately.',
+        '- Consider a stabilization epic if high/medium issues exceed your threshold.',
+        '',
+    ]
+    path.write_text("\n".join(lines))
+    print(f"- Semgrep status: {sem.get('status')}")
+    print(f"- Gitleaks status: {leaks.get('status')}")
+    print(f"- Summary: high={high}, medium={med}, low={low}, secrets={findings}")
+    return str(path)
+
+
+def _flow_plan_proposals(dest: Path) -> None:
+    bl = read_backlog()
+    if not bl:
+        print("- No backlog found. Run assess first.")
+        return
+    try:
+        cap_in = input("Capacity (default 20): ").strip()
+    except EOFError:
+        cap_in = ""
+    try:
+        cap = float(cap_in) if cap_in else 20.0
+    except ValueError:
+        cap = 20.0
+    from .sprints import plan_sprints
+    pmc = PMCoordinator()
+    enr = pmc.enrich_backlog(bl)
+    out_dir = Path('docs/proposals'); out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir/'proposed-backlog.json').write_text(enr.to_json())
+    sprints = plan_sprints(enr, capacity=cap)
+    for idx, sp in enumerate(sprints, start=1):
+        md = [f"# Proposed Sprint {idx}", "", f"Capacity: {cap}", "", "## Stories", ""]
+        pts = 0.0
+        for s in sp:
+            pts += float(s.estimate or 1)
+            md.append(f"- Story {s.id}: {s.title} (pts={s.estimate})")
+        md.append("")
+        md.append(f"Total points: {pts}")
+        (out_dir/f'sprint-{idx}.md').write_text("\n".join(md))
+    print(f"- Proposals written to {out_dir}")
 
 def cmd_plan(prd_path: str) -> None:
     ensure_dirs()
@@ -421,6 +606,10 @@ def main(argv: List[str] | None = None) -> None:
     p_install.add_argument("--dest", default=".", help="Destination project root (default: .)")
     p_install.add_argument("--no-bootstrap", action="store_true", help="Skip bootstrap checks")
     p_install.add_argument("--no-setup", action="store_true", help="Skip interactive setup menu")
+
+    p_setup = sub.add_parser("setup", help="Run interactive setup menu (greenfield/brownfield/audit)")
+
+    p_audit = sub.add_parser("audit", help="Run code quality audit (semgrep + gitleaks) and summarize")
 
     p_uninst = sub.add_parser("uninstall", help="Uninstall A2Dev scaffolding from a project (conservative)")
     p_uninst.add_argument("--dest", default=".", help="Target project root (default: .)")
@@ -931,7 +1120,7 @@ def main(argv: List[str] | None = None) -> None:
             print("Running bootstrap checks...")
             # Call bootstrap in the destination
             try:
-                import subprocess, sys
+                import subprocess
                 py = sys.executable or "python3"
                 subprocess.run([py, str(dest / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
             except Exception:
@@ -944,6 +1133,19 @@ def main(argv: List[str] | None = None) -> None:
                 pass
         else:
             _print_next_steps(dest)
+    elif args.cmd == "setup":
+        dest = Path(".").resolve()
+        _print_welcome()
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                _run_setup_menu(dest)
+            except Exception:
+                _print_next_steps(dest)
+        else:
+            _print_next_steps(dest)
+    elif args.cmd == "audit":
+        out = _run_quality_audit(Path(".").resolve())
+        print(f"Quality audit written: {out}")
     elif args.cmd == "uninstall":
         target = Path(args.dest).resolve()
         # Conservative list of files/dirs to remove
@@ -1080,7 +1282,7 @@ def main(argv: List[str] | None = None) -> None:
             print(f"Plan: {path}")
             if args.open:
                 try:
-                    import subprocess, sys
+                    import subprocess
                     if sys.platform == "darwin":
                         subprocess.run(["open", str(path)], check=False)
                     elif sys.platform.startswith("linux"):
