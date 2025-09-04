@@ -1,7 +1,32 @@
 #!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
-const { existsSync } = require('node:fs');
+const { existsSync, readFileSync } = require('node:fs');
 const { join, resolve } = require('node:path');
+
+function loadEnvLocal() {
+  try {
+    const candidates = [join(process.cwd(), '.env.local'), join(__dirname, '..', '.env.local')];
+    for (const p of candidates) {
+      try {
+        if (!existsSync(p)) continue;
+        const content = readFileSync(p, 'utf8');
+        for (const raw of content.split(/\r?\n/)) {
+          const line = raw.trim();
+          if (!line || line.startsWith('#') || !line.includes('=')) continue;
+          const idx = line.indexOf('=');
+          const key = line.slice(0, idx).trim();
+          let val = line.slice(idx + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (!(key in process.env)) process.env[key] = val;
+        }
+      } catch {}
+    }
+  } catch {}
+}
+
+loadEnvLocal();
 
 function which(cmd) {
   const sep = process.platform === 'win32' ? ';' : ':';
