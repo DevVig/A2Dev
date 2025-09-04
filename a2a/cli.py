@@ -66,6 +66,23 @@ def _print_next_steps(dest: Path) -> None:
         print(f"- Read the guide: {readme}")
 
 
+def _print_codex_handoff() -> None:
+    try:
+        from .storage import read_backlog as _rb
+        bl = _rb()
+        first_id = None
+        if bl:
+            for e in bl.epics:
+                if e.stories:
+                    first_id = e.stories[0].id
+                    break
+    except Exception:
+        first_id = None
+    print("\nHandoff to Codex:")
+    print("- Start your Codex IDE/Web harness and enable the router (see tools/codex_router_example.py).")
+    print("- In chat, type: @pm develop {id}  (or @pm next)".format(id=(first_id or 1)))
+    print("- Or from CLI: a2dev route '@pm develop {id}'".format(id=(first_id or 1)))
+
 def _run_setup_menu(dest: Path) -> None:
     while True:
         print("\nSetup Menu — choose an option:")
@@ -148,6 +165,7 @@ def _flow_start_fresh(dest: Path) -> None:
                 result = orch.prepare_story(s.id, also_scaffold=sc)
                 print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
     print("- Start Fresh flow complete.")
+    _print_codex_handoff()
 
 
 def _flow_brownfield_assess(dest: Path) -> None:
@@ -207,6 +225,7 @@ def _flow_brownfield_assess(dest: Path) -> None:
         except Exception as e:
             print(f"- Assess failed: {e}")
     print("- Brownfield assessment complete.")
+    _print_codex_handoff()
 
 
 def _flow_have_prd(dest: Path) -> None:
@@ -246,6 +265,7 @@ def _flow_have_prd(dest: Path) -> None:
                 result = orch.prepare_story(s.id, also_scaffold=sc)
                 print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
     print("- Prepared flow complete.")
+    _print_codex_handoff()
 
 
 def _more_options_menu(dest: Path) -> None:
@@ -880,6 +900,7 @@ def main(argv: List[str] | None = None) -> None:
         write_state(state)
         print("Phase advanced to: develop")
         print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [args.prd]))
+        _print_codex_handoff()
     elif args.cmd == "develop":
         orch = Orchestrator()
         print(pm_develop_guidance(args.id))
@@ -1348,6 +1369,7 @@ def main(argv: List[str] | None = None) -> None:
             except Exception as e:
                 print(f"Assess failed: {e}")
         print("Brownfield wizard complete.")
+        _print_codex_handoff()
     elif args.cmd == "uninstall":
         target = Path(args.dest).resolve()
         # Conservative list of files/dirs to remove
