@@ -10,15 +10,24 @@ type Tool = {
 
 import { spawn } from 'node:child_process';
 
-function runCli(args: string[]): Promise<{ stdout: string; stderr?: string }> {
-  return new Promise((resolve) => {
-    const proc = spawn('python3', ['a2dev_cli.py', ...args]);
+function spawnCollect(cmd: string, args: string[]) {
+  return new Promise<{ stdout: string; stderr?: string; code: number }>((resolve) => {
+    const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     let err = '';
-    proc.stdout.on('data', (d) => (out += d.toString()));
-    proc.stderr.on('data', (d) => (err += d.toString()));
-    proc.on('close', () => resolve({ stdout: out, stderr: err }));
+    p.stdout.on('data', (d) => (out += d.toString()));
+    p.stderr.on('data', (d) => (err += d.toString()));
+    p.on('error', () => resolve({ stdout: out, stderr: err, code: 127 }));
+    p.on('close', (code) => resolve({ stdout: out, stderr: err, code: code ?? 1 }));
   });
+}
+
+async function runCli(args: string[]): Promise<{ stdout: string; stderr?: string }> {
+  // Prefer Node wrapper (a2dev). Fallback to Python shim if not installed.
+  const nodeTry = await spawnCollect('a2dev', args);
+  if (nodeTry.code === 0 || nodeTry.code === 2 /* argparse usage */) return { stdout: nodeTry.stdout, stderr: nodeTry.stderr };
+  const pyTry = await spawnCollect('python3', ['a2dev_cli.py', ...args]);
+  return { stdout: pyTry.stdout, stderr: pyTry.stderr };
 }
 
 export const tools: Tool[] = [
@@ -86,4 +95,3 @@ export const tools: Tool[] = [
 
 // In your harness: register these tools, and in your system prompt instruct the model
 // to call `route` for messages starting with @analyst/@pm/@dev/@spm or *.
-
