@@ -18,7 +18,9 @@ Optimized for Codex
 - Minimal deps: avoids network calls by default; suitable for local/offline development.
 
 Quick Start (Node-first)
-- npx (no install): `npx a2dev install` then `a2dev pm story 1`
+- One-liner: `npx a2dev install && a2dev quickstart` (opens the menu)
+- New app: choose "Greenfield" in the menu, or run `a2dev assess docs/PRD.md` then `a2dev pm story 1`.
+- Existing app: choose "Brownfield" in the menu, or run `a2dev brownfield --append-prd --assess`.
 - Global (optional): `npm i -g a2dev` then `a2dev pm story 1`
 - `.env.local` is loaded automatically; copy `.env.example` and fill it.
 
