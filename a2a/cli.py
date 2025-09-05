@@ -43,6 +43,7 @@ from .storage import (
     read_state,
     write_ux_doc,
 )
+from .quality import semgrep_summary
 
 
 def _print_welcome() -> None:
@@ -259,6 +260,39 @@ def _spm_propose_stabilization() -> list[int]:
         created_ids.append(s.id)
     _wb(bl)
     return created_ids
+
+
+def _collect_quick_status() -> dict:
+    st = read_state()
+    bl = read_backlog()
+    story_count = sum(len(e.stories) for e in bl.epics) if bl else 0
+    current_id = st.current_story_id
+    semgrep = None; leaks = None
+    if current_id:
+        sem_path = Path(f"docs/security/semgrep/story-{current_id}.json")
+        if sem_path.exists():
+            h,m,l = semgrep_summary(sem_path)
+            semgrep = {"high": h, "medium": m, "low": l}
+        sec_path = Path(f"docs/security/secrets/story-{current_id}.json")
+        if sec_path.exists():
+            try:
+                import json as _json
+                data = _json.loads(sec_path.read_text())
+                findings = data if isinstance(data, list) else data.get("findings", [])
+                leaks = len(findings) if isinstance(findings, list) else 0
+            except Exception:
+                leaks = None
+    proposals = Path("docs/proposals/proposed-backlog.json").exists()
+    return {
+        "phase": st.phase,
+        "active_role": getattr(st, 'active_role', 'pm'),
+        "backlog_present": bool(bl),
+        "stories": story_count,
+        "current_story_id": current_id,
+        "proposals_present": proposals,
+        "semgrep": semgrep,
+        "secrets_findings": leaks,
+    }
 
 
 def _enable_dry_run_monkey_patches() -> None:
@@ -1851,7 +1885,10 @@ def main(argv: List[str] | None = None) -> None:
                 })
                 return
         elif route.role == "analyst" and route.cmd == "help":
-            msg = analyst_assess_guidance("docs/PRD.md")
+            qs = _collect_quick_status()
+            msg = analyst_assess_guidance("docs/PRD.md") + "\n\nQuick Status: phase={phase}, backlog={backlog}, stories={stories}, current={current}".format(
+                phase=qs.get('phase'), backlog=('yes' if qs.get('backlog_present') else 'no'), stories=qs.get('stories'), current=(qs.get('current_story_id') or 'none')
+            )
             st = read_state(); st.active_role = "analyst"; write_state(st)
             _emit({"role": "analyst", "cmd": "help", "active_role": "analyst", "status": "ready"}, msg)
             return
@@ -1866,7 +1903,11 @@ def main(argv: List[str] | None = None) -> None:
                     sid = int(route.arg)
                 except Exception:
                     sid = 1
-                _emit({"role": "pm", "cmd": "help", "story_id": sid, "active_role": "pm", "status": "ready"}, pm_develop_guidance(sid))
+                qs = _collect_quick_status()
+                intro = pm_develop_guidance(sid) + "\n\nQuick Status: phase={phase}, backlog={backlog}, stories={stories}, current={current}, proposals={props}".format(
+                    phase=qs.get('phase'), backlog=('yes' if qs.get('backlog_present') else 'no'), stories=qs.get('stories'), current=(qs.get('current_story_id') or 'none'), props=('yes' if qs.get('proposals_present') else 'no')
+                )
+                _emit({"role": "pm", "cmd": "help", "story_id": sid, "active_role": "pm", "status": "ready"}, intro)
                 return
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
@@ -2001,7 +2042,11 @@ def main(argv: List[str] | None = None) -> None:
         elif route.role == "spm":
             if route.cmd == "help":
                 st = read_state(); st.active_role = "spm"; write_state(st)
-                _emit({"role": "spm", "cmd": "help", "active_role": "spm", "status": "ready"}, spm_sustain_guidance(int(route.arg or "1")))
+                qs = _collect_quick_status()
+                intro = spm_sustain_guidance(int(route.arg or "1")) + "\n\nQuick Status: phase={phase}, backlog={backlog}, current={current}, semgrep={sem}, secrets={sec}".format(
+                    phase=qs.get('phase'), backlog=('yes' if qs.get('backlog_present') else 'no'), current=(qs.get('current_story_id') or 'none'), sem=(qs.get('semgrep') or {}), sec=(qs.get('secrets_findings') if qs.get('secrets_findings') is not None else 'n/a')
+                )
+                _emit({"role": "spm", "cmd": "help", "active_role": "spm", "status": "ready"}, intro)
                 return
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
