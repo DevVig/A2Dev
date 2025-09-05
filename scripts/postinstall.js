@@ -74,10 +74,23 @@ function main() {
     copyIfAbsent(path.join(pkgRoot, 'docs', 'PRD_SAMPLE.md'), prdDst);
   }
 
-  // CLI shims
-  copyIfAbsent(path.join(pkgRoot, 'a2dev_cli.py'), path.join(dest, 'a2dev_cli.py'));
-  copyIfAbsent(path.join(pkgRoot, 'a2a_cli.py'), path.join(dest, 'a2a_cli.py'));
-  // AGENTS.md
+  // Backlog (template) -> docs/backlog.json (if missing)
+  const backlogDst = path.join(dest, 'docs', 'backlog.json');
+  if (!fs.existsSync(backlogDst)) {
+    copyIfAbsent(path.join(pkgRoot, '.a2dev', 'templates', 'backlog.json'), backlogDst);
+  }
+  // Board (template) -> docs/status/board.md (if missing)
+  const boardDst = path.join(dest, 'docs', 'status', 'board.md');
+  if (!fs.existsSync(boardDst)) {
+    copyIfAbsent(path.join(pkgRoot, '.a2dev', 'templates', 'status', 'board.md'), boardDst);
+  }
+  // No-tool guide (if missing)
+  const ntgDst = path.join(dest, 'docs', 'no-tool', 'README.md');
+  if (!fs.existsSync(ntgDst)) {
+    copyIfAbsent(path.join(pkgRoot, 'docs', 'no-tool', 'README.md'), ntgDst);
+  }
+
+  // Guidance only, no Python shims; AGENTS.md non-destructive
   copyIfAbsent(path.join(pkgRoot, 'AGENTS.md'), path.join(dest, 'AGENTS.md'));
   // Codex harness assets (system prompt + tools)
   try {
@@ -155,7 +168,33 @@ function main() {
       pyTools[k].run = pyTools[k].run.replace('node node_modules/a2dev/bin/a2dev.js', 'python3 a2dev_cli.py');
     }
     const pyPath = path.join(codexDir, 'tools.python.json');
-    if (!fs.existsSync(pyPath)) fs.writeFileSync(pyPath, JSON.stringify(pyTools, null, 2));
+  if (!fs.existsSync(pyPath)) fs.writeFileSync(pyPath, JSON.stringify(pyTools, null, 2));
+    // Append AGENTS addendum (idempotent)
+    try {
+      const agentsPath = path.join(dest, 'AGENTS.md');
+      if (fs.existsSync(agentsPath)) {
+        const marker = '## A2Dev Addendum';
+        const cur = fs.readFileSync(agentsPath, 'utf8');
+        if (!cur.includes(marker)) {
+          const addendum = [
+            '',
+            marker,
+            '',
+            '- Auto‑Greeting: on bare @analyst/@pm/@spm, show persona greeting + numbered options; do not start work until a choice is made.',
+            '- No‑Tool Mode: use the Inline Artifact Protocol to produce files inline:',
+            '  - >>> BEGIN: <relative/file/path>',
+            '  - …file content…',
+            '  - >>> END',
+            '- Templates: see .a2dev/templates/** for prd, backlog, board, story, UX, ADR, QA, Threat, DevOps, Data, Privacy.',
+            '- Conversation Rules: do not break character; be explicit with numbered steps; always end replies with a one-line status.',
+            '- Phase Handoffs: Assess→PM; Develop FAIL→Analyst/PM; Develop PASS→QA; QA PASS→sPM; Sustain PASS→PM.',
+            '- Privacy: if Analytics PII != none, also create docs/security/privacy/story-<id>.md.',
+            ''
+          ].join('\n');
+          fs.writeFileSync(agentsPath, cur + addendum);
+        }
+      }
+    } catch {}
     const readme = [
       '# Codex Integration (A2Dev)',
       '',

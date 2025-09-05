@@ -44,6 +44,7 @@ from .storage import (
     write_ux_doc,
 )
 from .quality import semgrep_summary
+from .board import write_board, update_story_fields
 
 
 def _print_welcome() -> None:
@@ -169,6 +170,93 @@ def _install_missing_tools_interactive(dest: Path) -> None:
     # Re-check
     remaining = _detect_missing_tools()
     print(f"- Remaining missing tools: {', '.join(remaining) if remaining else 'none'}")
+
+
+def _append_agents_addendum(dest: Path) -> None:
+    """Append a non-destructive A2Dev addendum to AGENTS.md if present.
+
+    Idempotent: checks for a marker header before appending.
+    """
+    path = dest / "AGENTS.md"
+    if not path.exists():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:
+        return
+    marker = "## A2Dev Addendum"
+    if marker in text:
+        return
+    addendum = "\n\n" + marker + "\n\n" + "\n".join([
+        "- Auto‑Greeting: on bare @analyst/@pm/@spm, show persona greeting + numbered options; do not start work until a choice is made.",
+        "- No‑Tool Mode: use the Inline Artifact Protocol to produce files inline:",
+        "  - >>> BEGIN: <relative/file/path>",
+        "  - …file content…",
+        "  - >>> END",
+        "- Templates (paths under .a2dev/templates/**): prd.md, backlog.json, status/board.md, story.md, ux/story.md, architecture/ADR.md, qa/plan.md, security/threat.md, devops/plan.md, data/analytics.md, security/privacy.md.",
+        "- Conversation Rules: do not break character; be explicit with numbered steps; always end replies with a one-line status: [phase] Role | Agents: … | Docs +: … | Ref: … | Gate: PASS/FAIL.",
+        "- Phase Handoffs: Assess→PM; Develop FAIL→Analyst/PM; Develop PASS→QA; QA PASS→sPM; Sustain PASS→PM.",
+        "- Privacy: if Analytics PII != none, also create docs/security/privacy/story-<id>.md (inline).",
+    ]) + "\n"
+    try:
+        path.write_text(text + addendum, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _read_autogen_plan() -> dict:
+    from json import loads
+    p = Path('.a2dev/autogen_on_startup.json')
+    if p.exists():
+        try:
+            return loads(p.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def _write_autogen_plan(obj: dict) -> None:
+    from json import dumps
+    Path('.a2dev').mkdir(parents=True, exist_ok=True)
+    Path('.a2dev/autogen_on_startup.json').write_text(dumps(obj, indent=2))
+
+
+def _ensure_startup_scaffold() -> None:
+    plan = _read_autogen_plan()
+    st = read_state()
+    changed = False
+    # PRD
+    if plan.get('prd', False):
+        prd = Path(getattr(st, 'prd_path', 'docs/PRD.md'))
+        if not prd.exists():
+            prd.parent.mkdir(parents=True, exist_ok=True)
+            tpl = Path('.a2dev/templates/prd.md')
+            if tpl.exists():
+                prd.write_text(tpl.read_text().replace('{{project_name}}', 'Project'))
+                changed = True
+        plan.pop('prd', None)
+    # Backlog
+    if plan.get('backlog', False):
+        bl = Path(getattr(st, 'backlog_path', 'docs/backlog.json'))
+        if not bl.exists():
+            bl.parent.mkdir(parents=True, exist_ok=True)
+            tpl = Path('.a2dev/templates/backlog.json')
+            if tpl.exists():
+                bl.write_text(tpl.read_text())
+                changed = True
+        plan.pop('backlog', None)
+    # Board
+    if plan.get('board', False):
+        bd = Path(getattr(st, 'board_path', 'docs/status/board.md'))
+        if not bd.exists():
+            bd.parent.mkdir(parents=True, exist_ok=True)
+            tpl = Path('.a2dev/templates/status/board.md')
+            if tpl.exists():
+                bd.write_text(tpl.read_text())
+                changed = True
+        plan.pop('board', None)
+    if changed or plan:
+        _write_autogen_plan(plan)
 
 
 def _write_codex_assets(dest: Path) -> None:
@@ -1578,11 +1666,13 @@ def main(argv: List[str] | None = None) -> None:
         if not prd_dst.exists():
             copy_if_absent(repo_root / "docs" / "PRD_SAMPLE.md", prd_dst)
 
-        # CLI shim
-        copy_if_absent(repo_root / "a2dev_cli.py", dest / "a2dev_cli.py")
-        copy_if_absent(repo_root / "a2a_cli.py", dest / "a2a_cli.py")
-        # AGENTS.md
+        # Guidance only (no Python shims copied into project)
+        # AGENTS.md and no-tool guide
         copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
+        ntg = repo_root / "docs" / "no-tool" / "README.md"
+        if ntg.exists():
+            copy_if_absent(ntg, dest / "docs" / "no-tool" / "README.md")
+        _append_agents_addendum(dest)
         # Codex harness assets (system prompt + tools JSON)
         _write_codex_assets(dest)
         print(f"A2Dev initialized in {dest}")
@@ -1618,12 +1708,50 @@ def main(argv: List[str] | None = None) -> None:
         prd_dst = dest / "docs" / "PRD.md"
         if not prd_dst.exists():
             copy_if_absent(repo_root / "docs" / "PRD_SAMPLE.md", prd_dst)
-        copy_if_absent(repo_root / "a2dev_cli.py", dest / "a2dev_cli.py")
-        copy_if_absent(repo_root / "a2a_cli.py", dest / "a2a_cli.py")
+        # Guidance only (no Python shims copied into project)
         copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
+        ntg = repo_root / "docs" / "no-tool" / "README.md"
+        if ntg.exists():
+            copy_if_absent(ntg, dest / "docs" / "no-tool" / "README.md")
+        _append_agents_addendum(dest)
         _write_codex_assets(dest)
+        # Ask for existing PRD/backlog/board paths; otherwise schedule autogeneration on first use
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            plan = _read_autogen_plan()
+            st = read_state()
+            try:
+                prd_in = input("Existing PRD path (Enter to generate later): ").strip()
+            except EOFError:
+                prd_in = ""
+            if prd_in:
+                st.prd_path = prd_in
+            else:
+                plan['prd'] = True
+            try:
+                bl_in = input("Existing backlog.json path (Enter to generate later): ").strip()
+            except EOFError:
+                bl_in = ""
+            if bl_in:
+                st.backlog_path = bl_in
+            else:
+                plan['backlog'] = True
+            try:
+                board_in = input("Existing board path (Enter to generate later): ").strip()
+            except EOFError:
+                board_in = ""
+            if board_in:
+                st.board_path = board_in
+            else:
+                plan['board'] = True
+            write_state(st)
+            _write_autogen_plan(plan)
         print(f"A2Dev installed into {dest}")
         _print_welcome()
+        # Generate scheduled scaffolds immediately so no route/tool is required later
+        try:
+            _ensure_startup_scaffold()
+        except Exception:
+            pass
         if not args.no_bootstrap:
             print("Running bootstrap checks...")
             # Call bootstrap in the destination
@@ -1910,6 +2038,11 @@ def main(argv: List[str] | None = None) -> None:
         route = parse_route(text)
         if not route:
             raise SystemExit("Could not parse route. Try '@analyst assess docs/PRD.md' or '*develop 2'.")
+        # Ensure any scheduled autogeneration happens on first use
+        try:
+            _ensure_startup_scaffold()
+        except Exception:
+            pass
         json_mode = os.getenv("A2DEV_OUTPUT", "").lower() == "json"
         def _emit(obj: dict, fallback: str | None = None):
             if json_mode:
