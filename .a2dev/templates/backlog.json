@@ -1,0 +1,29 @@
+{
+  "epics": [
+    {
+      "id": 1,
+      "title": "<Epic Title>",
+      "description": "<Epic description>",
+      "stories": [
+        {
+          "id": 1,
+          "epic_id": 1,
+          "title": "<Story title>",
+          "description": "<Story description>",
+          "acceptance_criteria": [
+            "Given … When … Then …"
+          ],
+          "estimate": 1,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    }
+  ]
+}
+
