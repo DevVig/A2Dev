@@ -7,4 +7,6 @@
 - Required properties, types, constraints.
 
 ## Governance
-- Sampling, privacy, retention, QA.
+- PII: none | minimal | sensitive
+- Retention: <policy>
+- QA: how events are validated

@@ -50,6 +50,9 @@ def gate_story(backlog: Backlog, story_id: int) -> tuple[bool, list[str], list[s
         except Exception:
             pass
 
+    # Privacy check from Analytics spec
+    _analytics_privacy_check(story_id, checked_paths, missing)
+
     # Risk-based checks
     risk_path = Path(f"docs/qa/risk/story-{story_id}.json")
     if risk_path.exists():
@@ -73,3 +76,23 @@ def gate_story(backlog: Backlog, story_id: int) -> tuple[bool, list[str], list[s
             missing.append("Invalid risk file format")
 
     return len(missing) == 0, missing, checked_paths
+
+def _analytics_privacy_check(story_id: int, checked_paths: list[str], missing: list[str]) -> None:
+    """If analytics spec declares PII other than 'none', require a privacy review doc."""
+    a_path = Path(f"docs/data/analytics/story-{story_id}.md")
+    if not a_path.exists():
+        return
+    try:
+        text = a_path.read_text().lower()
+    except Exception:
+        return
+    pii_level = None
+    for ln in text.splitlines():
+        if ln.strip().startswith("- pii:") or ln.strip().startswith("pii:"):
+            pii_level = ln.split(":", 1)[1].strip()
+            break
+    if pii_level and pii_level not in {"none", "none|minimal", "none|minimal"} and not pii_level.startswith("none"):
+        priv = Path(f"docs/security/privacy/story-{story_id}.md")
+        checked_paths.append(str(priv))
+        if not priv.exists():
+            missing.append("Missing Privacy Review for analytics PII")

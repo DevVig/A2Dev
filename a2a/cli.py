@@ -2071,6 +2071,19 @@ def main(argv: List[str] | None = None) -> None:
                             s.priority = ps.priority
                             updated.append(s.id)
                 backup = Path("docs/backlog.backup.json"); backup.write_text(cur.to_json()); _wb(cur)
+                # Keep epics, sprints, and board up to date after backlog changes
+                try:
+                    write_epics_md(cur)
+                except Exception:
+                    pass
+                try:
+                    write_sprints(cur)
+                except Exception:
+                    pass
+                try:
+                    write_board(cur)
+                except Exception:
+                    pass
                 st = read_state(); st.active_role = "pm"; write_state(st)
                 _emit({
                     "role": "pm", "cmd": "accept-proposals", "active_role": "pm", "status": "ok",
@@ -2228,6 +2241,14 @@ def main(argv: List[str] | None = None) -> None:
                 if not backlog:
                     raise SystemExit("No backlog found. Run plan first.")
                 ok, issues, checked = gate_story(backlog, int(route.arg))
+                # Update story Status & Ownership for sustain phase
+                try:
+                    from .shard import update_story_status
+                    owner = "sPM"
+                    next_owner = "PM" if ok else "PM/Analyst"
+                    update_story_status(int(route.arg), phase="sustain", owner=owner, next_owner=next_owner, gate=("PASS" if ok else "FAIL"))
+                except Exception:
+                    pass
                 if not json_mode:
                     print("Sustain: Gate PASS" if ok else "Sustain: Gate FAIL\n- " + "\n- ".join(issues))
                     state = read_state()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime
 from .schema import Backlog
 
 
@@ -54,4 +55,67 @@ def shard_story(backlog: Backlog, story_id: int) -> str:
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"story-{story_id}.md"
     out.write_text("\n".join(lines))
+    return str(out)
+
+
+def update_story_status(
+    story_id: int,
+    *,
+    phase: str,
+    owner: str,
+    next_owner: str,
+    gate: str | None = None,
+) -> str:
+    """Insert or update a 'Status & Ownership' section in the story file.
+
+    The section is bounded by a '## Status & Ownership' header up to the next '## ' header
+    or end-of-file.
+    """
+    out = Path(f"docs/stories/story-{story_id}.md")
+    if not out.exists():
+        return ""
+    ts = datetime.utcnow().isoformat() + "Z"
+    status_lines = [
+        "## Status & Ownership",
+        f"- Phase: {phase}",
+        f"- Owner: {owner}",
+        f"- Next: {next_owner}",
+        f"- Gate: {gate if gate is not None else 'n/a'}",
+        f"- Last Updated: {ts}",
+        "",
+    ]
+    text = out.read_text()
+    lines = text.splitlines()
+    # Find existing section
+    start = None
+    end = None
+    for i, ln in enumerate(lines):
+        if ln.strip().lower().startswith("## status & ownership"):
+            start = i
+            # find end as next heading starting with '## '
+            for j in range(i + 1, len(lines)):
+                if lines[j].startswith("## "):
+                    end = j
+                    break
+            if end is None:
+                end = len(lines)
+            break
+    new_block = "\n".join(status_lines)
+    if start is None:
+        # Insert after Linked Artifacts section if present, else at end
+        insert_at = len(lines)
+        for i, ln in enumerate(lines):
+            if ln.strip().lower().startswith("## linked artifacts"):
+                # place after that section block
+                insert_at = i + 1
+                # skip to end of that section (until next heading)
+                for j in range(insert_at, len(lines)):
+                    if lines[j].startswith("## "):
+                        insert_at = j
+                        break
+                break
+        new_text = "\n".join(lines[:insert_at] + [new_block] + lines[insert_at:]) + ("\n" if not text.endswith("\n") else "")
+    else:
+        new_text = "\n".join(lines[:start] + [new_block] + lines[end:]) + ("\n" if not text.endswith("\n") else "")
+    out.write_text(new_text)
     return str(out)
