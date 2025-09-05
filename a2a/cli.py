@@ -2013,7 +2013,11 @@ def main(argv: List[str] | None = None) -> None:
                 phase=qs.get('phase'), backlog=('yes' if qs.get('backlog_present') else 'no'), stories=qs.get('stories'), current=(qs.get('current_story_id') or 'none')
             )
             st = read_state(); st.active_role = "analyst"; write_state(st)
-            _emit({"role": "analyst", "cmd": "help", "active_role": "analyst", "status": "ready"}, msg)
+            if not json_mode:
+                print(msg)
+                # Always end with a standard status line
+                print(format_status_line(st.phase, "Analyst", [], [], []))
+            _emit({"role": "analyst", "cmd": "help", "active_role": "analyst", "status": "ready"})
             return
         elif route.role == "analyst" and route.cmd == "exit":
             st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
@@ -2030,7 +2034,10 @@ def main(argv: List[str] | None = None) -> None:
                 intro = pm_develop_guidance(sid) + "\n\nQuick Status: phase={phase}, backlog={backlog}, stories={stories}, current={current}, proposals={props}".format(
                     phase=qs.get('phase'), backlog=('yes' if qs.get('backlog_present') else 'no'), stories=qs.get('stories'), current=(qs.get('current_story_id') or 'none'), props=('yes' if qs.get('proposals_present') else 'no')
                 )
-                _emit({"role": "pm", "cmd": "help", "story_id": sid, "active_role": "pm", "status": "ready"}, intro)
+                if not json_mode:
+                    print(intro)
+                    print(format_status_line(st.phase, "PM", [], [], []))
+                _emit({"role": "pm", "cmd": "help", "story_id": sid, "active_role": "pm", "status": "ready"})
                 return
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
@@ -2169,7 +2176,10 @@ def main(argv: List[str] | None = None) -> None:
                 intro = spm_sustain_guidance(int(route.arg or "1")) + "\n\nQuick Status: phase={phase}, backlog={backlog}, current={current}, semgrep={sem}, secrets={sec}".format(
                     phase=qs.get('phase'), backlog=('yes' if qs.get('backlog_present') else 'no'), current=(qs.get('current_story_id') or 'none'), sem=(qs.get('semgrep') or {}), sec=(qs.get('secrets_findings') if qs.get('secrets_findings') is not None else 'n/a')
                 )
-                _emit({"role": "spm", "cmd": "help", "active_role": "spm", "status": "ready"}, intro)
+                if not json_mode:
+                    print(intro)
+                    print(format_status_line(st.phase, "sPM", [], [], []))
+                _emit({"role": "spm", "cmd": "help", "active_role": "spm", "status": "ready"})
                 return
             if route.cmd == "exit":
                 st = read_state(); st.active_role = PRIMARY_ROLE.get(st.phase, "pm"); write_state(st)
