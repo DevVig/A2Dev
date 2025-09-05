@@ -60,18 +60,24 @@ function run(cmd, args) {
   // Prefer pyz if present for portability
   const pyzLocal = join(cwd, 'a2dev.pyz');
   const pyzPkg = join(pkgRoot, 'a2dev.pyz');
+  const py = which('python3') || which('python') || process.env.PYTHON || 'python3';
+  function tryRun(cmd, args) {
+    const r = spawnSync(cmd, args, { stdio: 'pipe' });
+    if ((r.status ?? 1) === 0) {
+      if (r.stdout) process.stdout.write(r.stdout);
+      if (r.stderr) process.stderr.write(r.stderr);
+      process.exit(0);
+    }
+  }
   if (existsSync(pyzLocal)) {
-    const py = which('python3') || which('python') || process.env.PYTHON || 'python3';
-    return run(py, [pyzLocal, ...args]);
+    tryRun(py, [pyzLocal, ...args]);
   }
   if (existsSync(pyzPkg)) {
-    const py = which('python3') || which('python') || process.env.PYTHON || 'python3';
-    return run(py, [pyzPkg, ...args]);
+    tryRun(py, [pyzPkg, ...args]);
   }
   // Fallback to CLI script
   const cliLocal = join(cwd, 'a2dev_cli.py');
   const cliPkg = join(pkgRoot, 'a2dev_cli.py');
-  const py = which('python3') || which('python') || process.env.PYTHON || 'python3';
   if (existsSync(cliLocal)) {
     return run(py, [cliLocal, ...args]);
   }
