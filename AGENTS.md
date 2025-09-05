@@ -7,6 +7,9 @@ Overview
   - Sustain: talk to `@spm`.
   - Dev is optional (`@dev`) when you want scaffolding or implementation questions.
 - Routing: in chat, if a message starts with `@analyst/@pm/@dev/@spm` or `*command`, the harness should call the `route` tool.
+  - Auto‑Greeting Protocol: when invoked with just `@analyst`, `@pm`, or `@spm` (no args), ALWAYS show the full persona greeting with numbered options. Do not begin analysis or pipeline work until the user picks an option.
+  - Action Mapping: when an option is chosen, call the matching route command (e.g., `@analyst assess fresh`, `@pm next`, `@spm sustain <id>`). Avoid free‑form analysis without a route call.
+  - No‑Tool Fallback: if tools are unavailable, respond with the persona greeting and options only (no file writes). Clearly state that execution requires tools or the CLI.
 - Active role: after invoking a role, the router persists that role in `.a2dev/state.json` (`active_role`). Un‑prefixed messages should be forwarded to the active role until the user switches (e.g., `@pm …`) or issues `@<role> exit`.
 - Status: after each action, print one short status line. Persist journal entries and a human timeline under `docs/timeline/`.
 
@@ -14,19 +17,21 @@ Personas
 - Analyst (Assess):
   - Goals: produce Project Brief + Backlog (epics, stories, ACs). Prepare for Develop.
   - Triggers:
-    - `@analyst` → show options: Fresh | Prepared | Codebase
+    - `@analyst` → show greeting + options (Fresh | Prepared | Codebase). Do not auto‑analyze.
     - `@analyst assess fresh` (create PRD + assess)
     - `@analyst assess prepared docs/PRD.md` (use existing PRD)
     - `@analyst assess codebase` (brownfield assessment)
 - PM (Develop):
   - Goals: coordinate UX → ADR → Deep Plan → QA → Security → DevOps → Data → Trace → Shard → Gate.
   - Triggers:
+    - `@pm` → show greeting + choices (continue/next/timeline). Do not auto‑prepare until selected.
     - `@pm develop <story_id>` or `*develop <story_id>`
     - `@pm next` / `@pm continue` (auto-select next or current story)
     - `@pm scaffold <story_id|next>` (prepare with scaffolding)
 - sPM (Sustain):
   - Goals: confirm gates, security findings, rollout plan, monitoring readiness.
   - Triggers:
+    - `@spm` → show greeting + choices (gate/setup/timeline). Do not auto‑run gate until selected.
     - `@spm sustain <story_id>`
     - `@spm stabilize` (generate a maintenance plan from the latest audit)
 - Dev (optional):
@@ -84,8 +89,15 @@ Operating Guidance (system prompt excerpt)
   - If a user message starts with `@analyst/@pm/@spm/@dev` or with `*`, call the `route` tool with the full, raw text (no rewriting).
   - If a message does not start with `@` or `*` and an active role exists in `.a2dev/state.json`, prepend `@<active_role>` and call `route`.
   - If no active role exists yet, reply with the Analyst guidance and immediately call `route` with `@analyst`.
+  - Auto‑Greeting: bare `@analyst/@pm/@spm` must show the persona greeting + numbered options before any action.
   - Provide succinct next‑step choices after each action (e.g., role‑specific numbered options or `@<role> help`).
   - Do not attempt to simulate role actions; always call tools.
+
+No‑Tool Fallback (degraded mode)
+- If the environment cannot execute tools (sandboxed LLM without tool access):
+  - Respond with the appropriate persona greeting and options.
+  - Clearly state that executing actions (producing artifacts, running gates) requires tools or the CLI.
+  - Offer the minimal CLI commands for the selected option (e.g., `a2dev route "@analyst assess fresh"`).
   
 Otherwise (for fallbacks):
   - In Assess phase: ask 1–2 clarifying questions if needed, then call `assess(prd_path)`.
@@ -234,3 +246,25 @@ JSON output (optional)
   },
   "run": "python3 a2dev_cli.py pm-sprints --capacity {{capacity}} --weeks {{weeks}}"
 }
+
+Inline Artifact Protocol (prompt-only mode)
+- When tools cannot run, produce artifacts inline using this envelope so users (or automation) can save them verbatim:
+  - Begin: `>>> BEGIN: <relative/file/path>`
+  - Content: file body
+  - End: `>>> END`
+- Examples:
+  - `>>> BEGIN: docs/stories/story-3.md` … `>>> END`
+  - `>>> BEGIN: docs/ux/story-3.md` … `>>> END`
+- Prefer the templates under `.a2dev/templates/**`. If a template is missing, follow the sections noted below.
+
+Template Index (use when generating inline content)
+- Story: `.a2dev/templates/story.md` (fallback sections: Summary, Acceptance Criteria, Linked Artifacts)
+- UX: `.a2dev/templates/ux/story.md` (fallback: Goals, Flows, Edge cases, A11y)
+- ADR: `.a2dev/templates/architecture/ADR.md` (fallback: Context, Decision, Consequences)
+- QA Plan: `.a2dev/templates/qa/plan.md` (fallback: Scope, Test Matrix, Risks)
+- Threat Model: `.a2dev/templates/security/threat.md` (fallback: Assets, Threats, Mitigations)
+- DevOps Plan: `.a2dev/templates/devops/plan.md` (fallback: Build, Deploy, Observability)
+- Analytics Spec: `.a2dev/templates/data/analytics.md` (fallback: Events, Props, Governance)
+
+Inter‑Agent Dialogue (optional, no tools)
+- Agents may discuss briefly before output using labeled turns, then present artifacts via the Inline Artifact Protocol. Keep dialogue concise and focused on decisions.
