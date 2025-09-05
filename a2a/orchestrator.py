@@ -12,9 +12,11 @@ from .roles.security import SecurityRole
 from .roles.devops import DevOpsRole
 from .roles.data import DataRole
 from .trace import generate_trace
-from .shard import shard_story
+from .shard import shard_story, update_story_status
 from .gate import gate_story
 from .mcp import RefAdapter, SemgrepAdapter, GitleaksAdapter
+from .storage import write_backlog
+from .board import write_board, update_story_fields
 from .journal import log_story_event
 
 
@@ -121,8 +123,56 @@ class Orchestrator:
             agents_used.append("Security")
 
         ensure(f"docs/stories/story-{story_id}.md", lambda: shard_story(backlog, story_id), agent="PM")
+        # Create QA readiness marker when gate passes
+        if Path(f"docs/qa/readiness/story-{story_id}.md").exists() is False:
+            try:
+                from datetime import datetime as _dt
+                qadir = Path("docs/qa/readiness"); qadir.mkdir(parents=True, exist_ok=True)
+                (qadir / f"story-{story_id}.md").write_text(
+                    f"""# QA Readiness — Story {story_id}
+
+Ready: pending
+Gate: pending
+Updated: {_dt.utcnow().isoformat()}Z
+"""
+                )
+            except Exception:
+                pass
 
         gate_ok, issues, checked_paths = gate_story(backlog, story_id)
+        # Update story status/ownership guidance based on gate result
+        try:
+            owner = "PM" if not gate_ok else "Dev"
+            next_owner = ("Analyst/PM" if not gate_ok else "QA")
+            update_story_status(
+                story_id,
+                phase="develop",
+                owner=owner,
+                next_owner=next_owner,
+                gate=("PASS" if gate_ok else "FAIL"),
+            )
+            # Sync to backlog and write board; update QA readiness
+            if update_story_fields(backlog, story_id, phase="develop", owner=owner, next_owner=next_owner, gate=("PASS" if gate_ok else "FAIL")):
+                write_backlog(backlog)
+                try:
+                    write_board(backlog)
+                except Exception:
+                    pass
+                # Flip QA readiness when gate passes
+                try:
+                    qap = Path(f"docs/qa/readiness/story-{story_id}.md")
+                    if qap.exists() and gate_ok:
+                        from datetime import datetime as _dt
+                        qap.write_text(f"""# QA Readiness — Story {story_id}
+
+Ready: yes
+Gate: PASS
+Updated: {_dt.utcnow().isoformat()}Z
+""")
+                except Exception:
+                    pass
+        except Exception:
+            pass
         result = {
             "gate": gate_ok,
             "issues": issues,

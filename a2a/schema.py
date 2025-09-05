@@ -23,6 +23,11 @@ class Story:
     priority: Priority = Priority.should
     dependencies: List[int] = field(default_factory=list)
     risks: List[str] = field(default_factory=list)
+    # Board/status fields (optional)
+    phase: Optional[str] = None      # assess | develop | qa | sustain | done
+    owner: Optional[str] = None      # Analyst | PM | Dev | QA | sPM | etc.
+    next_owner: Optional[str] = None
+    gate: Optional[str] = None       # PASS | FAIL | n/a
 
 
 @dataclass
@@ -58,6 +63,10 @@ class Backlog:
                         priority=Priority(s.get("priority", Priority.should.value)),
                         dependencies=s.get("dependencies", []),
                         risks=s.get("risks", []),
+                        phase=s.get("phase"),
+                        owner=s.get("owner"),
+                        next_owner=s.get("next_owner"),
+                        gate=s.get("gate"),
                     )
                 )
             epics.append(
