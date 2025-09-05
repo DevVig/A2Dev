@@ -29,6 +29,7 @@
     "a2a/**",
     "a2dev_cli.py",
     "a2a_cli.py",
+    "a2dev.pyz",
     "AGENTS.md",
     "README_A2Dev.md",
     ".a2dev/**",
@@ -46,6 +47,7 @@
   },
   "scripts": {
     "build:pyz": "python3 scripts/build_pyz.py",
+    "prepack": "npm run build:pyz",
     "postinstall": "node scripts/postinstall.js"
   }
 }

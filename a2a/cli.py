@@ -60,6 +60,7 @@ def _print_next_steps(dest: Path) -> None:
     print("\nNext steps:")
     print("- Copy sample env: cp .env.example .env.local")
     print("- Bootstrap checks: a2dev bootstrap")
+    print("- Meet the Analyst: a2dev route '@analyst' (or type @analyst in Codex chat)")
     print("- Prepare a story: a2dev pm story 1")
     print("- Optional pre-commit: cp .a2dev/hooks/pre-commit.sample .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit")
     readme = dest / "README_A2Dev.md"
@@ -168,6 +169,121 @@ def _install_missing_tools_interactive(dest: Path) -> None:
     # Re-check
     remaining = _detect_missing_tools()
     print(f"- Remaining missing tools: {', '.join(remaining) if remaining else 'none'}")
+
+
+def _write_codex_assets(dest: Path) -> None:
+    """Write Codex harness assets (system prompt + tool definitions) under .a2dev/codex.
+    Non-destructive: only creates files if missing.
+    """
+    codex_dir = dest / ".a2dev" / "codex"
+    codex_dir.mkdir(parents=True, exist_ok=True)
+    # System prompt
+    sys_prompt = (
+        "You are the A2Dev PM/Analyst/sPM assistant. Tools are available. Routing policy:\n"
+        "- If a user message starts with @analyst/@pm/@spm/@dev or with *, ALWAYS call the route tool with the full text unchanged.\n"
+        "- If the message is not prefixed and an active role exists in .a2dev/state.json, prepend @<active_role> and call route.\n"
+        "- If no active role exists, call route with '@analyst' to begin assessment.\n"
+        "Keep responses concise, include next‑step options, and never simulate tool behavior.\n"
+        "Always print one short status line and persist artifacts under docs/* and docs/timeline/.\n"
+    )
+    sp_path = codex_dir / "system-prompt.txt"
+    if not sp_path.exists():
+        sp_path.write_text(sys_prompt)
+    # Tools (Node)
+    node_tools = {
+        "route": {
+            "name": "route",
+            "description": "Conversational router for @role and *commands",
+            "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js route \"{{text}}\"",
+            "env": {"A2DEV_OUTPUT": "json"}
+        },
+        "pm_next": {
+            "name": "pm_next",
+            "description": "PM picks the next story and prepares it",
+            "parameters": {"type": "object", "properties": {"scaffold": {"type": "boolean", "default": False}}},
+            "run": "node node_modules/a2dev/bin/a2dev.js pm next {{#if scaffold}}--scaffold{{/if}}"
+        },
+        "pm_continue": {
+            "name": "pm_continue",
+            "description": "PM continues the current story or picks next",
+            "parameters": {"type": "object", "properties": {"scaffold": {"type": "boolean", "default": False}}},
+            "run": "node node_modules/a2dev/bin/a2dev.js pm continue {{#if scaffold}}--scaffold{{/if}}"
+        },
+        "pm_story": {
+            "name": "pm_story",
+            "description": "PM prepares a specific story id",
+            "parameters": {"type": "object", "properties": {"id": {"type": "integer"}, "scaffold": {"type": "boolean", "default": False}}, "required": ["id"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js pm story {{id}} {{#if scaffold}}--scaffold{{/if}}"
+        },
+        "assess": {
+            "name": "assess",
+            "description": "Analyst produces brief + backlog; advances phase",
+            "parameters": {"type": "object", "properties": {"prd_path": {"type": "string"}}, "required": ["prd_path"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js assess {{prd_path}}"
+        },
+        "develop": {
+            "name": "develop",
+            "description": "PM runs full develop pipeline for a story",
+            "parameters": {"type": "object", "properties": {"story_id": {"type": "integer"}}, "required": ["story_id"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js develop {{story_id}}"
+        },
+        "sustain": {
+            "name": "sustain",
+            "description": "sPM runs sustainment gate",
+            "parameters": {"type": "object", "properties": {"story_id": {"type": "integer"}}, "required": ["story_id"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js sustain {{story_id}}"
+        },
+        "gate_check": {
+            "name": "gate_check",
+            "description": "Check gates and return issues",
+            "parameters": {"type": "object", "properties": {"story_id": {"type": "integer"}}, "required": ["story_id"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js gate {{story_id}}"
+        },
+        "timeline": {
+            "name": "timeline",
+            "description": "Show assess or story timeline",
+            "parameters": {"type": "object", "properties": {"target": {"type": "string"}}, "required": ["target"]},
+            "run": "node node_modules/a2dev/bin/a2dev.js timeline {{target}}"
+        },
+        "pm_sprints": {
+            "name": "pm_sprints",
+            "description": "Plan sprints from the backlog",
+            "parameters": {"type": "object", "properties": {"capacity": {"type": "number", "default": 20}, "weeks": {"type": "integer", "default": 2}}},
+            "run": "node node_modules/a2dev/bin/a2dev.js pm-sprints --capacity {{capacity}} --weeks {{weeks}}"
+        }
+    }
+    import json as _json
+    node_path = codex_dir / "tools.node.json"
+    if not node_path.exists():
+        node_path.write_text(_json.dumps(node_tools, indent=2))
+    # Tools (Python)
+    py_tools = node_tools.copy()
+    # Replace run strings for Python CLI
+    for k, v in list(py_tools.items()):
+        cmd = v.get("run", "")
+        py_tools[k] = {**v, "run": cmd.replace("node node_modules/a2dev/bin/a2dev.js", "python3 a2dev_cli.py")}
+    py_path = codex_dir / "tools.python.json"
+    if not py_path.exists():
+        py_path.write_text(_json.dumps(py_tools, indent=2))
+    # README with setup steps
+    readme = (
+        "# Codex Integration (A2Dev)\n\n"
+        "This project is preconfigured for Codex (CLI/Web). Import these once, then just chat with `@analyst`, `@pm`, `@spm`.\n\n"
+        "## System Prompt\n"
+        "Use: `.a2dev/codex/system-prompt.txt` as your system message.\n\n"
+        "## Tools\n"
+        "Prefer Node tools: `.a2dev/codex/tools.node.json` (runs `node node_modules/a2dev/bin/a2dev.js ...`).\n\n"
+        "Alternative Python tools: `.a2dev/codex/tools.python.json` (runs `python3 a2dev_cli.py ...`).\n\n"
+        "Required tool: `route` — forward any message starting with `@analyst/@pm/@spm/@dev` or `*` to this tool with the full text.\n\n"
+        "## Behavior\n"
+        "- The router persists the active role in `.a2dev/state.json`.\n"
+        "- Unprefixed messages should be forwarded to `@<active_role>` via the route tool.\n"
+        "- After setup, users simply type `@analyst` to get the greeting and options.\n"
+    )
+    readme_path = codex_dir / "README.md"
+    if not readme_path.exists():
+        readme_path.write_text(readme)
 
 
 def _spm_generate_maintenance_plan(dest: Path) -> str:
@@ -972,10 +1088,13 @@ def main(argv: List[str] | None = None) -> None:
 
     p_init = sub.add_parser("init", help="Initialize A2Dev files into a project")
     p_init.add_argument("--dest", default=".", help="Destination project root (default: .)")
-    p_install = sub.add_parser("install", help="Install (init + optional bootstrap + setup menu)")
+    p_install = sub.add_parser("install", help="Install (init + optional bootstrap; setup menu is now opt-in)")
     p_install.add_argument("--dest", default=".", help="Destination project root (default: .)")
     p_install.add_argument("--no-bootstrap", action="store_true", help="Skip bootstrap checks")
-    p_install.add_argument("--no-setup", action="store_true", help="Skip interactive setup menu")
+    # Default: do NOT run interactive setup during install to keep installation uniform.
+    # Use --setup or run `a2dev quickstart` if you want the legacy interactive menu.
+    p_install.add_argument("--setup", action="store_true", help="Run interactive setup menu after install")
+    p_install.add_argument("--no-setup", action="store_true", help="Force-skip interactive setup menu (overrides --setup)")
 
     # Brownfield one-shot wizard
     p_bf = sub.add_parser("brownfield", help="One-shot brownfield wizard: inventory, architecture snapshot, assessment, and optional assess/PRD update")
@@ -1464,6 +1583,8 @@ def main(argv: List[str] | None = None) -> None:
         copy_if_absent(repo_root / "a2a_cli.py", dest / "a2a_cli.py")
         # AGENTS.md
         copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
+        # Codex harness assets (system prompt + tools JSON)
+        _write_codex_assets(dest)
         print(f"A2Dev initialized in {dest}")
         _print_welcome()
         _print_next_steps(dest)
@@ -1500,6 +1621,7 @@ def main(argv: List[str] | None = None) -> None:
         copy_if_absent(repo_root / "a2dev_cli.py", dest / "a2dev_cli.py")
         copy_if_absent(repo_root / "a2a_cli.py", dest / "a2a_cli.py")
         copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
+        _write_codex_assets(dest)
         print(f"A2Dev installed into {dest}")
         _print_welcome()
         if not args.no_bootstrap:
@@ -1512,7 +1634,8 @@ def main(argv: List[str] | None = None) -> None:
                 subprocess.run([py, str(repo_root / "a2dev_cli.py"), "bootstrap"], check=False, cwd=str(dest))
             except Exception:
                 pass
-        if not args.no_setup and os.getenv("A2DEV_IN_CODEX") != "1" and sys.stdin.isatty() and sys.stdout.isatty():
+        # Only run setup menu when explicitly requested with --setup and we are in an interactive TTY
+        if args.setup and not args.no_setup and os.getenv("A2DEV_IN_CODEX") != "1" and sys.stdin.isatty() and sys.stdout.isatty():
             try:
                 _run_setup_menu(dest)
             except Exception:

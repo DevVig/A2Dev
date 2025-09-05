@@ -21,19 +21,16 @@ Optimized for Codex
  - Integration guide: see `docs/integrations/Codex.md` for tool registration and system prompt.
 
 Quick Start (Node-first)
-- One-liner: `npx a2dev install && a2dev quickstart` (opens the menu)
-- New app: choose "Greenfield" in the menu, or run `a2dev assess docs/PRD.md` then `a2dev pm story 1`.
-- Existing app: choose "Brownfield" in the menu, or run `a2dev brownfield --append-prd --assess`.
-- Global (optional): `npm i -g a2dev` then `a2dev pm story 1`
-- `.env.local` is loaded automatically; copy `.env.example` and fill it.
+- One-liner: `npx -y -p github:DevVig/A2Dev a2dev install`
+- Meet the Analyst: `npx -y -p github:DevVig/A2Dev a2dev route "@analyst"`
+- In chat (Codex): type `@analyst` and choose Fresh | Prepared | Codebase.
+- Continue: `a2dev pm story 1` or `a2dev route "@pm next"`
+- `.env.local` is loaded automatically; copy `.env.example` if needed.
 
 Readiness
 - Doctor: `a2dev doctor` — checks tools (rg/ctags/semgrep/gitleaks), runs a code quality audit, and prints next steps.
 - One-button install: `a2dev doctor --fix` — attempts to install missing tools (macOS: Homebrew; Debian/Ubuntu: apt + pipx; Windows: Chocolatey/Winget if available).
-- Setup menu: `a2dev quickstart` — 3 primary paths:
-  - Start Fresh: create PRD and assess (Greenfield)
-  - I come prepared: assess an existing PRD
-  - I already started: assess an existing codebase (Brownfield) — includes inventory + audit
+- Setup menu (optional): `a2dev quickstart` — interactive helper, but installation is uniform. Choose paths here only if you prefer menus; otherwise use `@analyst` to select Fresh/Prepared/Codebase conversationally.
  - Dry-run mode: add `--dry-run` to any command (e.g., `a2dev --dry-run pm story 1`) to list planned writes and skip file changes.
 
 Python path (optional)
@@ -138,6 +135,7 @@ NPX-like one-liners (Node/npm)
 
 Using In Different Surfaces
 - CLI
+  - Open Analyst: `python3 a2dev_cli.py route "@analyst"`
   - Assess: `python3 a2dev_cli.py route "@analyst assess docs/PRD.md"`
   - Develop (PM): `python3 a2dev_cli.py route "@pm develop 2"` or `python3 a2dev_cli.py pm next`
   - Sustain (sPM): `python3 a2dev_cli.py route "@spm sustain 2"`
@@ -203,6 +201,7 @@ Troubleshooting
 - Gate fails “Acceptance criteria missing”: add ACs in `docs/PRD.md` (then `plan`) or directly in `docs/backlog.json`.
 - Semgrep high findings: open `docs/security/semgrep/story-<id>.json` and adjust code/policies.
 - Secrets findings: rotate and remove secrets; re‑scan.
+- Python CLI cannot import `a2a` after npm install: the CLI shims now auto‑locate the Python package in `node_modules`. If you still see `ModuleNotFoundError: a2a`, ensure `node_modules/a2dev` exists (run `npm i -D a2dev`) or set `A2DEV_PY_PKG_PATH=/path/to/node_modules/a2dev`. As a fallback, run via Node: `npx a2dev <cmd>` or use the bundled `a2dev.pyz` with `python3 a2dev.pyz <cmd>`.
 
 Publish (npm) Checklist (optional)
 - Update `package.json` name/scope if publishing to npm (e.g., `@your-scope/a2dev`).
