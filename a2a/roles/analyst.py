@@ -165,3 +165,37 @@ class AnalystRole:
             prd_txt[:1000] + ("..." if len(prd_txt) > 1000 else ""),
         ]
         return "\n".join(lines)
+
+    # New: Hypothesis per story
+    def hypothesis_for_story(self, backlog, story_id: int) -> str:
+        story = next((s for e in backlog.epics for s in e.stories if s.id == story_id), None)
+        title = story.title if story else ""
+        from pathlib import Path as _P
+        tpl = _P(".a2dev/templates/analyst/hypothesis.md")
+        if tpl.exists():
+            txt = tpl.read_text()
+            # Light token replacement if placeholders present
+            txt = txt.replace("{{id}}", str(story_id)).replace("{{title}}", title)
+        else:
+            txt = f"""# Hypothesis — Story {story_id}: {title}
+
+## Problem
+- What user/job/problem are we addressing? Evidence.
+
+## Hypothesis
+- If we [change], then [user/metric] will [increase/decrease] because [reason].
+
+## KPIs & Guardrails
+- Primary KPI and guardrails.
+
+## Experiment Design
+- Cohort, MDE/power, stopping rules.
+"""
+        return txt
+
+    def write_hypothesis(self, text: str, story_id: int) -> str:
+        from pathlib import Path as _P
+        out_dir = _P("docs/analyst/hypothesis"); out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"story-{story_id}.md"
+        out.write_text(text)
+        return str(out)

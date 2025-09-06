@@ -20,7 +20,7 @@ def pm_develop_guidance(story_id: int) -> str:
     return (
         "PM here. I'll coordinate the sub‑agents (UX, Architect, Deep Planning, QA, Security, DevOps, Data) for this story, then run the gate.\n"
         f"- Story: {story_id}\n"
-        "- Steps: UX → ADR → Deep Plan → QA → Threat → DevOps → Data → Trace → Shard → Gate.\n"
+        "- Steps: UX → ADR → NFRs → Deep Plan → QA → Threat → DevOps (release+observability) → Data → Hypothesis → Trace → Shard → Gate.\n"
         "- If the gate fails (e.g., missing acceptance criteria), I’ll point out what to fix and we can iterate.\n"
         f"- I’ll stay in PM mode until you switch roles or '@pm exit'.\n"
         f"- Choices: (1) pm continue  (2) setup  (3) timeline {story_id}"
@@ -31,7 +31,7 @@ def spm_sustain_guidance(story_id: int) -> str:
     return (
         "sPM here. I’ll verify sustainment readiness: gates, security findings, ops plan, and analytics readiness.\n"
         f"- Story: {story_id}\n"
-        "- Steps: Check gate status, semgrep findings, rollout plan, and monitoring.\n"
+        "- Steps: Check gate status, semgrep findings, rollout plan, observability/SLOs, and runbook readiness.\n"
         "- We can open follow‑ups for any gaps before marking sustainment complete.\n"
         f"- I’ll stay in sPM mode until you switch roles or '@spm exit'.\n"
         f"- Choices: (1) gate {story_id}  (2) setup  (3) timeline {story_id}"

@@ -64,11 +64,17 @@ class Orchestrator:
         if not ref.index_exists():
             ref.build_index()
 
-        # Order: UX → Arch → Deep Plan → QA → Security → DevOps → Data → Trace → Shard
+        # Order: UX → Arch → NFRs → Deep Plan → QA → Security → DevOps → Release/Observability → Data → Trace → Shard
         ensure(f"docs/ux/story-{story_id}.md", lambda: self._gen_ux(story_id, backlog), agent="UX")
         ensure(
             f"docs/architecture/ADR-story-{story_id}.md",
             lambda: self._gen_arch(story_id, backlog),
+            agent="Architecture",
+        )
+        # NFRs (explicit per-story doc)
+        ensure(
+            f"docs/architecture/nfrs/story-{story_id}.md",
+            lambda: self.arch.write_nfrs(story_id),
             agent="Architecture",
         )
         ensure(f"docs/planning/story-{story_id}.md", lambda: self._gen_plan(story_id, backlog), agent="Planning")
@@ -80,9 +86,25 @@ class Orchestrator:
         )
         ensure(f"docs/devops/story-{story_id}.md", lambda: self._gen_devops(story_id, backlog), agent="DevOps")
         ensure(
+            f"docs/devops/release-plans/story-{story_id}.md",
+            lambda: self.devops.write_release_plan(story_id),
+            agent="DevOps",
+        )
+        ensure(
+            f"docs/devops/observability/story-{story_id}.md",
+            lambda: self.devops.write_observability(story_id),
+            agent="DevOps",
+        )
+        ensure(
             f"docs/data/analytics/story-{story_id}.md",
             lambda: self._gen_data(story_id, backlog),
             agent="Data",
+        )
+        # Analyst hypothesis (experiment framing)
+        ensure(
+            f"docs/analyst/hypothesis/story-{story_id}.md",
+            lambda: self._write_hypothesis(story_id, backlog),
+            agent="Analyst",
         )
         ensure(f"docs/qa/trace/story-{story_id}.md", lambda: generate_trace(backlog, story_id), agent="QA")
 
@@ -250,3 +272,10 @@ Updated: {_dt.utcnow().isoformat()}Z
         out_dir = Path("docs/data/analytics")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"story-{story_id}.md").write_text(text)
+
+    def _write_hypothesis(self, story_id: int, backlog):
+        from .roles.analyst import AnalystRole as _AR
+        ar = _AR()
+        txt = ar.hypothesis_for_story(backlog, story_id)
+        out = ar.write_hypothesis(txt, story_id)
+        return out

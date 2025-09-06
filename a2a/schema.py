@@ -94,7 +94,9 @@ class UXDoc:
 class State:
     current_story_id: Optional[int] = None
     backlog_path: str = "docs/backlog.json"
+    prd_path: str = "docs/PRD.md"
     ux_dir: str = "docs/ux"
     features_dir: str = "features"
     phase: str = "develop"  # assess | develop | sustain
     active_role: str = "pm"   # pm | analyst | sm | dev | qa | architect | devops | security | data
+    board_path: str = "docs/status/board.md"

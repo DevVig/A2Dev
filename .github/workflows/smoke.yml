@@ -1,0 +1,31 @@
+name: Smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install (non-interactive)
+        run: |
+          node bin/a2dev.js install --dest . --no-bootstrap
+
+      - name: Run smoke test via Node wrapper
+        run: |
+          node bin/a2dev.js smoke
+

@@ -1,8 +1,10 @@
 {
   "current_story_id": 2,
   "backlog_path": "docs/backlog.json",
+  "prd_path": "docs/PRD.md",
   "ux_dir": "docs/ux",
   "features_dir": "features",
   "phase": "develop",
-  "active_role": "pm"
+  "active_role": "analyst",
+  "board_path": "docs/status/board.md"
 }

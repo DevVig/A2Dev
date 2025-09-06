@@ -14,7 +14,11 @@
           "estimate": null,
           "priority": "should",
           "dependencies": [],
-          "risks": []
+          "risks": [],
+          "phase": "develop",
+          "owner": "PM",
+          "next_owner": "Analyst/PM",
+          "gate": "FAIL"
         }
       ]
     },
@@ -32,7 +36,11 @@
           "estimate": null,
           "priority": "should",
           "dependencies": [],
-          "risks": []
+          "risks": [],
+          "phase": "develop",
+          "owner": "PM",
+          "next_owner": "Analyst/PM",
+          "gate": "FAIL"
         },
         {
           "id": 3,
@@ -43,7 +51,11 @@
           "estimate": null,
           "priority": "should",
           "dependencies": [],
-          "risks": []
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
         },
         {
           "id": 4,
@@ -58,7 +70,11 @@
           "estimate": null,
           "priority": "should",
           "dependencies": [],
-          "risks": []
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
         }
       ]
     },
@@ -76,7 +92,11 @@
           "estimate": null,
           "priority": "should",
           "dependencies": [],
-          "risks": []
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
         },
         {
           "id": 6,
@@ -90,7 +110,11 @@
           "estimate": null,
           "priority": "should",
           "dependencies": [],
-          "risks": []
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
         }
       ]
     }

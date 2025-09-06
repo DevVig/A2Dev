@@ -82,7 +82,7 @@ def _print_codex_handoff() -> None:
     except Exception:
         first_id = None
     print("\nHandoff to Codex:")
-    print("- Start your Codex IDE/Web harness and enable the router (see tools/codex_router_example.py).")
+    print("- Start your Codex IDE/Web harness and enable the router (call: python3 a2dev_cli.py route '<message>').")
     print("- In chat, type: @pm develop {id}  (or @pm next)".format(id=(first_id or 1)))
     print("- Or from CLI: a2dev route '@pm develop {id}'".format(id=(first_id or 1)))
 
@@ -1184,6 +1184,10 @@ def main(argv: List[str] | None = None) -> None:
     p_install.add_argument("--setup", action="store_true", help="Run interactive setup menu after install")
     p_install.add_argument("--no-setup", action="store_true", help="Force-skip interactive setup menu (overrides --setup)")
 
+    # Reinstall: non-destructive copy-if-absent of guidance/templates; auto-detect fresh vs patch
+    p_reinstall = sub.add_parser("reinstall", help="Reinstall or patch A2Dev files (non-destructive)")
+    p_reinstall.add_argument("--dest", default=".", help="Destination project root (default: .)")
+
     # Brownfield one-shot wizard
     p_bf = sub.add_parser("brownfield", help="One-shot brownfield wizard: inventory, architecture snapshot, assessment, and optional assess/PRD update")
     p_bf.add_argument("--name", type=str, default="Your App")
@@ -1771,6 +1775,54 @@ def main(argv: List[str] | None = None) -> None:
                 pass
         else:
             _print_next_steps(dest)
+    elif args.cmd == "reinstall":
+        dest = Path(args.dest).resolve()
+        repo_root = Path(__file__).resolve().parents[1]
+
+        def ensure_dir(p: Path):
+            p.mkdir(parents=True, exist_ok=True)
+
+        def copy_if_absent(src: Path, dst: Path):
+            if not dst.exists():
+                ensure_dir(dst.parent)
+                if src.is_dir():
+                    import shutil
+                    shutil.copytree(src, dst)
+                else:
+                    import shutil
+                    shutil.copy2(src, dst)
+
+        fresh = not (dest / ".a2dev").exists() or not (dest / "AGENTS.md").exists()
+
+        ensure_dir(dest / ".a2dev"); ensure_dir(dest / "docs")
+
+        for subdir in ["policies", "semgrep", "templates"]:
+            src_dir = repo_root / ".a2dev" / subdir
+            if src_dir.exists():
+                for item in src_dir.iterdir():
+                    copy_if_absent(item, dest / ".a2dev" / subdir / item.name)
+
+        pr_src = repo_root / ".github" / "pull_request_template.md"
+        if pr_src.exists():
+            copy_if_absent(pr_src, dest / ".github" / "pull_request_template.md")
+
+        prd_dst = dest / "docs" / "PRD.md"
+        if not prd_dst.exists():
+            copy_if_absent(repo_root / "docs" / "PRD_SAMPLE.md", prd_dst)
+
+        copy_if_absent(repo_root / "AGENTS.md", dest / "AGENTS.md")
+        _append_agents_addendum(dest)
+        _write_codex_assets(dest)
+
+        # Normalize state (drops unknown keys); create if missing
+        try:
+            st = read_state(); write_state(st)
+        except Exception:
+            from .storage import State
+            write_state(State())
+
+        print(f"A2Dev {'installed' if fresh else 'patched'} into {dest} (non-destructive)")
+        _print_welcome(); _print_next_steps(dest)
     elif args.cmd in ("setup", "quickstart"):
         dest = Path(".").resolve()
         _print_welcome()

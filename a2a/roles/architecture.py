@@ -134,3 +134,19 @@ Summarize system goals and constraints.
             txt = f"# Architecture Review — Story {story_id}\n\n- Context, design, NFRs, risks, contracts, questions.\n"
         out.write_text(txt)
         return str(out)
+
+    # New: Non-Functional Requirements per story
+    def write_nfrs(self, story_id: int) -> str:
+        out_dir = Path("docs/architecture/nfrs"); out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"story-{story_id}.md"
+        tpl = Path(".a2dev/templates/architecture/nfrs.md")
+        if tpl.exists():
+            txt = tpl.read_text().replace("{{id}}", str(story_id))
+        else:
+            txt = f"""# Non-Functional Requirements — Story {story_id}
+
+## Security / Privacy / Accessibility / Performance / Reliability / Observability
+- Budgets, thresholds, and controls.
+"""
+        out.write_text(txt)
+        return str(out)

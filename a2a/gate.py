@@ -18,12 +18,16 @@ def gate_story(backlog: Backlog, story_id: int) -> tuple[bool, list[str], list[s
     checks = {
         "UX": Path(f"docs/ux/story-{story_id}.md"),
         "ADR": Path(f"docs/architecture/ADR-story-{story_id}.md"),
+        "NFRs": Path(f"docs/architecture/nfrs/story-{story_id}.md"),
         "Deep Plan": Path(f"docs/planning/story-{story_id}.md"),
         "QA Plan": Path(f"docs/qa/plans/story-{story_id}.md"),
         "Traceability": Path(f"docs/qa/trace/story-{story_id}.md"),
         "Threat Model": Path(f"docs/security/threats/story-{story_id}.md"),
         "DevOps Plan": Path(f"docs/devops/story-{story_id}.md"),
+        "Release Plan": Path(f"docs/devops/release-plans/story-{story_id}.md"),
+        "Observability Plan": Path(f"docs/devops/observability/story-{story_id}.md"),
         "Analytics Spec": Path(f"docs/data/analytics/story-{story_id}.md"),
+        "Hypothesis": Path(f"docs/analyst/hypothesis/story-{story_id}.md"),
         "Story Shard": Path(f"docs/stories/story-{story_id}.md"),
     }
 

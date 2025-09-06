@@ -99,6 +99,7 @@ Conversation Rules
 - End every response with the status line format: `[phase] Role | Agents: … | Docs +: … | Ref: … | Gate: PASS/FAIL` (Gate optional).
 - Be verbose and explicit when giving instructions or checklists; use numbered steps.
 - When tools are not available, use the Inline Artifact Protocol (see below) and clearly state limitations.
+- Next Owner Protocol: include a one‑line "Next: <role>" in your Next Steps section, based on phase transitions below.
 
 No‑Tool Fallback (degraded mode)
 - If the environment cannot execute tools (sandboxed LLM without tool access):
@@ -272,8 +273,33 @@ Template Index (use when generating inline content)
 - Threat Model: `.a2dev/templates/security/threat.md` (fallback: Assets, Threats, Mitigations)
 - DevOps Plan: `.a2dev/templates/devops/plan.md` (fallback: Build, Deploy, Observability)
 - Analytics Spec: `.a2dev/templates/data/analytics.md` (fallback: Events, Props, Governance)
+ - NFRs: `.a2dev/templates/architecture/nfrs.md` (fallback: Security, Privacy, A11y, Performance, Reliability, Observability)
+ - Hypothesis: `.a2dev/templates/analyst/hypothesis.md` (fallback: Problem, Hypothesis, KPIs, Guardrails, Design, Stopping Rules)
+ - Release Plan: `.a2dev/templates/devops/release-plan.md` (fallback: Flags, Rollout, Rollback, Comms)
+ - Observability Plan: `.a2dev/templates/devops/observability.md` (fallback: Metrics/SLIs/SLOs, Traces, Logs, Dashboards)
+ - Postmortem: `.a2dev/templates/devops/postmortem.md` (fallback: Summary, Timeline, Factors, Actions, Learnings)
 
 Inter‑Agent Dialogue (optional, no tools)
 - Agents may discuss briefly before output using labeled turns, then present artifacts via the Inline Artifact Protocol. Keep dialogue concise and focused on decisions.
 
+Phase Transitions & Ownership
+- Assess → Develop: Owner: Analyst → PM. Next: PM.
+- Develop (planning/gate FAIL): Owner: PM; Next: Analyst/PM (resolve issues/ACs).
+- Develop (gate PASS): Owner: Dev; Next: QA when implementation MR/PR ready.
+- QA (test pass): Owner: QA → sPM (sustain); Next: sPM for rollout readiness.
+- Sustain: Owner: sPM; Next: PM for next story or release manager per org process.
+
 See also: `.a2dev/policies/LLM-Rules.md` for the complete conversational rule set.
+
+
+## A2Dev Addendum
+
+- Auto‑Greeting: on bare @analyst/@pm/@spm, show persona greeting + numbered options; do not start work until a choice is made.
+- No‑Tool Mode: use the Inline Artifact Protocol to produce files inline:
+  - >>> BEGIN: <relative/file/path>
+  - …file content…
+  - >>> END
+- Templates (paths under .a2dev/templates/**): prd.md, backlog.json, status/board.md, story.md, ux/story.md, architecture/ADR.md, qa/plan.md, security/threat.md, devops/plan.md, data/analytics.md, security/privacy.md.
+- Conversation Rules: do not break character; be explicit with numbered steps; always end replies with a one-line status: [phase] Role | Agents: … | Docs +: … | Ref: … | Gate: PASS/FAIL.
+- Phase Handoffs: Assess→PM; Develop FAIL→Analyst/PM; Develop PASS→QA; QA PASS→sPM; Sustain PASS→PM.
+- Privacy: if Analytics PII != none, also create docs/security/privacy/story-<id>.md (inline).

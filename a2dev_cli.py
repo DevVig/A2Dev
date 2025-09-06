@@ -74,9 +74,8 @@ def _ensure_a2a_on_path() -> None:
     # If we get here, a2a isn’t importable
     sys.stderr.write(
         "A2Dev: could not locate Python package 'a2a'.\n"
-        "- If installed via npm: ensure node_modules contains 'a2dev' and rerun.\n"
+        "- Ensure you're running from a repo that contains the 'a2a/' package.\n"
         "- Or set A2DEV_PY_PKG_PATH to the package root containing 'a2a/'.\n"
-        "- Or run via Node: npx a2dev <cmd> (preferred).\n"
     )
     sys.exit(1)
 
