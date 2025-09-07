@@ -2,7 +2,7 @@
   "epics": [
     {
       "id": 1,
-      "title": "# Product Requirements Document (Sample)",
+      "title": "# Product Requirements Document \u2014 A2Dev Sample",
       "description": "",
       "stories": [
         {
@@ -15,58 +15,24 @@
           "priority": "should",
           "dependencies": [],
           "risks": [],
-          "phase": "develop",
-          "owner": "PM",
-          "next_owner": "Analyst/PM",
-          "gate": "FAIL"
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
         }
       ]
     },
     {
       "id": 2,
-      "title": "Authentication",
-      "description": "Overview\nUsers must sign in to access their dashboard and personalized data.",
+      "title": "Summary",
+      "description": "- A2Dev orchestrates Assess \u2192 Develop \u2192 Sustain workflows to generate predictable agile artifacts (PRD \u2192 backlog \u2192 plans \u2192 gates). Primary users are product managers, analysts, and engineers working in a Git-first environment.\n- Scope: author PRD, derive backlog, and drive planning/gates. Out of scope: full implementation of product features unrelated to the planning pipeline itself.",
       "stories": [
         {
           "id": 2,
           "epic_id": 2,
-          "title": "As a user, I can sign up with email and password.",
+          "title": "- A2Dev orchestrates Assess \u2192 Develop \u2192 Sustain workflows to",
           "description": "",
           "acceptance_criteria": [],
-          "estimate": null,
-          "priority": "should",
-          "dependencies": [],
-          "risks": [],
-          "phase": "develop",
-          "owner": "PM",
-          "next_owner": "Analyst/PM",
-          "gate": "FAIL"
-        },
-        {
-          "id": 3,
-          "epic_id": 2,
-          "title": "As a user, I can sign in and sign out.",
-          "description": "",
-          "acceptance_criteria": [],
-          "estimate": null,
-          "priority": "should",
-          "dependencies": [],
-          "risks": [],
-          "phase": null,
-          "owner": null,
-          "next_owner": null,
-          "gate": null
-        },
-        {
-          "id": 4,
-          "epic_id": 2,
-          "title": "As a user, I can reset my password via email.",
-          "description": "",
-          "acceptance_criteria": [
-            "Passwords must be at least 12 characters.",
-            "Sign\u2011in should lock after 5 failed attempts.",
-            "Reset link expires after 30 minutes."
-          ],
           "estimate": null,
           "priority": "should",
           "dependencies": [],
@@ -80,12 +46,223 @@
     },
     {
       "id": 3,
+      "title": "Goals & Success Metrics",
+      "description": "- Generate a parseable backlog from PRD within minutes (Backlog present, stories >= 5).\n- Reduce planning/gate failures by making ACs, NFRs, and risks explicit (gate PASS rate > 90%).\n- Time-to-first-plan under 10 minutes; pushable repo with docs and state.",
+      "stories": [
+        {
+          "id": 3,
+          "epic_id": 3,
+          "title": "- Generate a parseable backlog from PRD within minutes (Back",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Users & Personas (Inclusive)",
+      "description": "- PM/Analyst: authors PRD, reviews backlog/epics, manages gates.\n- Engineer: consumes stories/ACs and linked specs (UX, ADR, DevOps).\n- Accessibility: ensure docs meet contrast/structure and story ACs include keyboard/screen-reader behaviors where relevant.",
+      "stories": [
+        {
+          "id": 4,
+          "epic_id": 4,
+          "title": "- PM/Analyst: authors PRD, reviews backlog/epics, manages ga",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Non-Functional Requirements (NFRs)",
+      "description": "- Performance: assess and plan operations complete under minutes; CLI feedback < 2s per step.\n- Reliability: deterministic outputs under docs/*; repeatable runs.\n- Security/Privacy: no PII processed; secrets scanning enabled (gitleaks), code scanning (semgrep).\n- Observability: docs/timeline updated; gate outputs recorded.",
+      "stories": [
+        {
+          "id": 5,
+          "epic_id": 5,
+          "title": "- Performance: assess and plan operations complete under min",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Constraints & Assumptions",
+      "description": "- Local dev with Python 3.11+; optional tools rg, ctags, semgrep, gitleaks.\n- Network pushing depends on environment policies.",
+      "stories": [
+        {
+          "id": 6,
+          "epic_id": 6,
+          "title": "- Local dev with Python 3.11+; optional tools rg, ctags, sem",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Dependencies & Risks",
+      "description": "- Git and GitHub availability for pushes/PRs.\n- Risk: large binaries can block pushes (mitigate via .gitignore and history rewrite).",
+      "stories": [
+        {
+          "id": 7,
+          "epic_id": 7,
+          "title": "- Git and GitHub availability for pushes/PRs.",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Analytics & Telemetry",
+      "description": "- Events: assess-run, pm-develop, sustain-run; properties: duration, gate_result.\n- Governance: no PII; store artifacts as markdown/json in repo.",
+      "stories": [
+        {
+          "id": 8,
+          "epic_id": 8,
+          "title": "- Events: assess-run, pm-develop, sustain-run; properties: d",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Rollout Plan",
+      "description": "- Feature flags: template updates gated behind PR; rollback by reverting docs.\n- Monitoring: review gate status lines and docs/timeline.\n\n---",
+      "stories": [
+        {
+          "id": 9,
+          "epic_id": 9,
+          "title": "- Feature flags: template updates gated behind PR; rollback ",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Authentication",
+      "description": "Overview\nUsers must sign in to access their dashboard and personalized data.",
+      "stories": [
+        {
+          "id": 10,
+          "epic_id": 10,
+          "title": "As a user, I can sign up with email and password.",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        },
+        {
+          "id": 11,
+          "epic_id": 10,
+          "title": "As a user, I can sign in and sign out.",
+          "description": "",
+          "acceptance_criteria": [],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        },
+        {
+          "id": 12,
+          "epic_id": 10,
+          "title": "As a user, I can reset my password via email.",
+          "description": "",
+          "acceptance_criteria": [
+            "Given a strong-password policy, When I set a new password, Then it must be at least 12 characters.",
+            "Given repeated failed sign-ins, When 5 attempts fail, Then the account is locked for 15 minutes.",
+            "Given a reset request, When I use the link, Then it expires after 30 minutes.",
+            "A11y: All auth forms are keyboard navigable; inputs have labels and error messaging announced."
+          ],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 11,
       "title": "Dashboard",
       "description": "Overview\nSigned\u2011in users see a summary of their data and quick actions.",
       "stories": [
         {
-          "id": 5,
-          "epic_id": 3,
+          "id": 13,
+          "epic_id": 11,
           "title": "As a user, I can view key metrics for the last 7 days.",
           "description": "",
           "acceptance_criteria": [],
@@ -99,13 +276,14 @@
           "gate": null
         },
         {
-          "id": 6,
-          "epic_id": 3,
+          "id": 14,
+          "epic_id": 11,
           "title": "As a user, I can filter metrics by date range.",
           "description": "",
           "acceptance_criteria": [
-            "Loading state appears while data fetches.",
-            "Empty state explains no data conditions."
+            "Given data loads, When fetching metrics, Then a loading state is shown.",
+            "Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.",
+            "A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA; keyboard focus order is logical."
           ],
           "estimate": null,
           "priority": "should",
