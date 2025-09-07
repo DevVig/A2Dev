@@ -114,48 +114,71 @@
   - TBD
 
 
-## 10. Authentication
+## 10. Auth — Sign Up
 
 Overview
-Users must sign in to access their dashboard and personalized data.
+As a new user, I want to create an account to access personalized features.
 
 - Story 10: As a user, I can sign up with email and password.
   - Priority: should
   - Estimate: None
   - Acceptance Criteria:
-  - TBD
+  - Given password policy, When I set a new password, Then it must be at least 12 characters and validated inline.
+  - Given a sign‑up form error, When I submit invalid input, Then errors are announced and mapped to fields.
+  - A11y: Form is keyboard navigable; labels are associated; error regions use ARIA live.
+
+
+## 11. Auth — Sign In/Out
+
+Overview
+As a returning user, I need secure sign‑in and sign‑out to manage my session.
 
 - Story 11: As a user, I can sign in and sign out.
   - Priority: should
   - Estimate: None
   - Acceptance Criteria:
-  - TBD
+  - Given repeated failed sign‑ins, When 5 attempts fail, Then the account is locked for 15 minutes.
+  - Given a successful sign‑in, When I click sign‑out, Then the session is invalidated server‑side.
+  - A11y: Inputs support password managers; focus management returns to the trigger on close.
+
+
+## 12. Auth — Password Reset
+
+Overview
+As a user who forgot a password, I can reset it securely.
 
 - Story 12: As a user, I can reset my password via email.
   - Priority: should
   - Estimate: None
   - Acceptance Criteria:
-  - Given a strong-password policy, When I set a new password, Then it must be at least 12 characters.
-  - Given repeated failed sign-ins, When 5 attempts fail, Then the account is locked for 15 minutes.
-  - Given a reset request, When I use the link, Then it expires after 30 minutes.
-  - A11y: All auth forms are keyboard navigable; inputs have labels and error messaging announced.
+  - Given a reset request, When I use the link, Then it expires after 30 minutes and is single‑use.
+  - Given strong password policy, When I set a new password, Then it meets the requirements and logs me out of other sessions.
+  - A11y: Reset flow is operable by keyboard and announced via screen reader hints.
 
 
-## 11. Dashboard
+## 13. Dashboard — 7‑Day Metrics
 
 Overview
-Signed‑in users see a summary of their data and quick actions.
+Signed‑in users see a summary of key metrics for the last 7 days.
 
 - Story 13: As a user, I can view key metrics for the last 7 days.
   - Priority: should
   - Estimate: None
   - Acceptance Criteria:
-  - TBD
+  - Given data loads, When fetching metrics, Then a loading state is shown with skeletons.
+  - Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.
+  - A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA.
+
+
+## 14. Dashboard — Date Range Filter
+
+Overview
+Users can filter dashboard metrics by a chosen date range.
 
 - Story 14: As a user, I can filter metrics by date range.
   - Priority: should
   - Estimate: None
   - Acceptance Criteria:
-  - Given data loads, When fetching metrics, Then a loading state is shown.
-  - Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.
-  - A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA; keyboard focus order is logical.
+  - Given a selected range, When I apply the filter, Then charts/tables update consistently and show the range.
+  - Given keyboard navigation, When I tab through the date picker, Then all controls are operable and announced.
+  - A11y: Focus order is logical; reduced motion is respected for transitions.

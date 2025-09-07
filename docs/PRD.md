@@ -38,32 +38,67 @@
 
 ---
 
-## Authentication
+## Auth — Sign Up
 
 Overview
-Users must sign in to access their dashboard and personalized data.
+As a new user, I want to create an account to access personalized features.
 
 ### Stories
 - As a user, I can sign up with email and password.
+
+### Acceptance
+- Given password policy, When I set a new password, Then it must be at least 12 characters and validated inline.
+- Given a sign‑up form error, When I submit invalid input, Then errors are announced and mapped to fields.
+- A11y: Form is keyboard navigable; labels are associated; error regions use ARIA live.
+
+## Auth — Sign In/Out
+
+Overview
+As a returning user, I need secure sign‑in and sign‑out to manage my session.
+
+### Stories
 - As a user, I can sign in and sign out.
+
+### Acceptance
+- Given repeated failed sign‑ins, When 5 attempts fail, Then the account is locked for 15 minutes.
+- Given a successful sign‑in, When I click sign‑out, Then the session is invalidated server‑side.
+- A11y: Inputs support password managers; focus management returns to the trigger on close.
+
+## Auth — Password Reset
+
+Overview
+As a user who forgot a password, I can reset it securely.
+
+### Stories
 - As a user, I can reset my password via email.
 
 ### Acceptance
-- Given a strong-password policy, When I set a new password, Then it must be at least 12 characters.
-- Given repeated failed sign-ins, When 5 attempts fail, Then the account is locked for 15 minutes.
-- Given a reset request, When I use the link, Then it expires after 30 minutes.
-- A11y: All auth forms are keyboard navigable; inputs have labels and error messaging announced.
+- Given a reset request, When I use the link, Then it expires after 30 minutes and is single‑use.
+- Given strong password policy, When I set a new password, Then it meets the requirements and logs me out of other sessions.
+- A11y: Reset flow is operable by keyboard and announced via screen reader hints.
 
-## Dashboard
+## Dashboard — 7‑Day Metrics
 
 Overview
-Signed‑in users see a summary of their data and quick actions.
+Signed‑in users see a summary of key metrics for the last 7 days.
 
 ### Stories
 - As a user, I can view key metrics for the last 7 days.
+
+### Acceptance
+- Given data loads, When fetching metrics, Then a loading state is shown with skeletons.
+- Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.
+- A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA.
+
+## Dashboard — Date Range Filter
+
+Overview
+Users can filter dashboard metrics by a chosen date range.
+
+### Stories
 - As a user, I can filter metrics by date range.
 
 ### Acceptance
-- Given data loads, When fetching metrics, Then a loading state is shown.
-- Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.
-- A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA; keyboard focus order is logical.
+- Given a selected range, When I apply the filter, Then charts/tables update consistently and show the range.
+- Given keyboard navigation, When I tab through the date picker, Then all controls are operable and announced.
+- A11y: Focus order is logical; reduced motion is respected for transitions.

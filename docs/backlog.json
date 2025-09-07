@@ -200,49 +200,18 @@
     },
     {
       "id": 10,
-      "title": "Authentication",
-      "description": "Overview\nUsers must sign in to access their dashboard and personalized data.",
+      "title": "Auth \u2014 Sign Up",
+      "description": "Overview\nAs a new user, I want to create an account to access personalized features.",
       "stories": [
         {
           "id": 10,
           "epic_id": 10,
           "title": "As a user, I can sign up with email and password.",
           "description": "",
-          "acceptance_criteria": [],
-          "estimate": null,
-          "priority": "should",
-          "dependencies": [],
-          "risks": [],
-          "phase": null,
-          "owner": null,
-          "next_owner": null,
-          "gate": null
-        },
-        {
-          "id": 11,
-          "epic_id": 10,
-          "title": "As a user, I can sign in and sign out.",
-          "description": "",
-          "acceptance_criteria": [],
-          "estimate": null,
-          "priority": "should",
-          "dependencies": [],
-          "risks": [],
-          "phase": null,
-          "owner": null,
-          "next_owner": null,
-          "gate": null
-        },
-        {
-          "id": 12,
-          "epic_id": 10,
-          "title": "As a user, I can reset my password via email.",
-          "description": "",
           "acceptance_criteria": [
-            "Given a strong-password policy, When I set a new password, Then it must be at least 12 characters.",
-            "Given repeated failed sign-ins, When 5 attempts fail, Then the account is locked for 15 minutes.",
-            "Given a reset request, When I use the link, Then it expires after 30 minutes.",
-            "A11y: All auth forms are keyboard navigable; inputs have labels and error messaging announced."
+            "Given password policy, When I set a new password, Then it must be at least 12 characters and validated inline.",
+            "Given a sign\u2011up form error, When I submit invalid input, Then errors are announced and mapped to fields.",
+            "A11y: Form is keyboard navigable; labels are associated; error regions use ARIA live."
           ],
           "estimate": null,
           "priority": "should",
@@ -257,15 +226,19 @@
     },
     {
       "id": 11,
-      "title": "Dashboard",
-      "description": "Overview\nSigned\u2011in users see a summary of their data and quick actions.",
+      "title": "Auth \u2014 Sign In/Out",
+      "description": "Overview\nAs a returning user, I need secure sign\u2011in and sign\u2011out to manage my session.",
       "stories": [
         {
-          "id": 13,
+          "id": 11,
           "epic_id": 11,
-          "title": "As a user, I can view key metrics for the last 7 days.",
+          "title": "As a user, I can sign in and sign out.",
           "description": "",
-          "acceptance_criteria": [],
+          "acceptance_criteria": [
+            "Given repeated failed sign\u2011ins, When 5 attempts fail, Then the account is locked for 15 minutes.",
+            "Given a successful sign\u2011in, When I click sign\u2011out, Then the session is invalidated server\u2011side.",
+            "A11y: Inputs support password managers; focus management returns to the trigger on close."
+          ],
           "estimate": null,
           "priority": "should",
           "dependencies": [],
@@ -274,16 +247,75 @@
           "owner": null,
           "next_owner": null,
           "gate": null
-        },
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Auth \u2014 Password Reset",
+      "description": "Overview\nAs a user who forgot a password, I can reset it securely.",
+      "stories": [
+        {
+          "id": 12,
+          "epic_id": 12,
+          "title": "As a user, I can reset my password via email.",
+          "description": "",
+          "acceptance_criteria": [
+            "Given a reset request, When I use the link, Then it expires after 30 minutes and is single\u2011use.",
+            "Given strong password policy, When I set a new password, Then it meets the requirements and logs me out of other sessions.",
+            "A11y: Reset flow is operable by keyboard and announced via screen reader hints."
+          ],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Dashboard \u2014 7\u2011Day Metrics",
+      "description": "Overview\nSigned\u2011in users see a summary of key metrics for the last 7 days.",
+      "stories": [
+        {
+          "id": 13,
+          "epic_id": 13,
+          "title": "As a user, I can view key metrics for the last 7 days.",
+          "description": "",
+          "acceptance_criteria": [
+            "Given data loads, When fetching metrics, Then a loading state is shown with skeletons.",
+            "Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.",
+            "A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA."
+          ],
+          "estimate": null,
+          "priority": "should",
+          "dependencies": [],
+          "risks": [],
+          "phase": null,
+          "owner": null,
+          "next_owner": null,
+          "gate": null
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Dashboard \u2014 Date Range Filter",
+      "description": "Overview\nUsers can filter dashboard metrics by a chosen date range.",
+      "stories": [
         {
           "id": 14,
-          "epic_id": 11,
+          "epic_id": 14,
           "title": "As a user, I can filter metrics by date range.",
           "description": "",
           "acceptance_criteria": [
-            "Given data loads, When fetching metrics, Then a loading state is shown.",
-            "Given no metrics, When the dataset is empty, Then an empty state explains why and next steps.",
-            "A11y: Widgets have accessible names/roles; color contrast meets WCAG 2.1 AA; keyboard focus order is logical."
+            "Given a selected range, When I apply the filter, Then charts/tables update consistently and show the range.",
+            "Given keyboard navigation, When I tab through the date picker, Then all controls are operable and announced.",
+            "A11y: Focus order is logical; reduced motion is respected for transitions."
           ],
           "estimate": null,
           "priority": "should",
