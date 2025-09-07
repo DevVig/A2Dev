@@ -4,28 +4,28 @@
 - Gitleaks: findings=0 (skipped)
 
 ## Hotspots (by file count)
-- a2a: 20 files
-- .: 14 files
-- docs/analyst: 12 files
+- a2a: 21 files
+- .: 15 files
+- docs/analyst: 13 files
 - a2a/roles: 11 files
 - docs/proposals: 7 files
 - docs: 6 files
 - docs/architecture: 5 files
-- scripts: 4 files
 - docs/sprints: 3 files
 - features/story-2: 3 files
+- docs/data/analytics: 2 files
 
 ## Hotspots (by total bytes)
-- .: 8883430 bytes
-- a2a: 114923 bytes
-- a2a/roles: 16932 bytes
-- docs: 8908 bytes
-- scripts: 7151 bytes
-- examples: 6046 bytes
-- docs/security/semgrep: 5174 bytes
+- .: 342281064685 bytes
+- a2a: 175355 bytes
+- a2a/roles: 23848 bytes
+- docs: 9562 bytes
+- docs/security/semgrep: 5282 bytes
+- docs/analyst: 4555 bytes
 - docs/proposals: 4108 bytes
 - docs/architecture: 3884 bytes
-- docs/analyst: 3834 bytes
+- docs/integrations: 2546 bytes
+- docs/no-tool: 2452 bytes
 
 ## Recommendations
 - Address high-severity findings before new feature work.

@@ -1,10 +1,8 @@
 # Brownfield Inventory
 
 ## Languages
-- python: 39 files
-- javascript: 2 files
-- typescript: 2 files
-- shell: 1 files
+- python: 37 files
+- javascript: 1 files
 
 ## Manifests
 - package.json

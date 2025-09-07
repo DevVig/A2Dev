@@ -1,9 +1,7 @@
 {
   "languages": {
-    "python": 39,
-    "javascript": 2,
-    "typescript": 2,
-    "shell": 1
+    "python": 37,
+    "javascript": 1
   },
   "manifests": [
     "package.json",
@@ -16,10 +14,7 @@
         "path": "package.json",
         "dependencies": {},
         "devDependencies": {},
-        "scripts": {
-          "build:pyz": "python3 scripts/build_pyz.py",
-          "postinstall": "node scripts/postinstall.js"
-        }
+        "scripts": {}
       }
     ],
     "python": [
