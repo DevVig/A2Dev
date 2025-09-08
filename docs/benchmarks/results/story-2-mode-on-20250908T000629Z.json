@@ -1,0 +1,16 @@
+{
+  "cold": {
+    "duration_s": 0.291757417,
+    "gate": false,
+    "created": 0,
+    "existing": 17,
+    "agents": []
+  },
+  "warm": {
+    "duration_s": 0.09945183400000002,
+    "gate": false,
+    "created": 0,
+    "existing": 17,
+    "agents": []
+  }
+}

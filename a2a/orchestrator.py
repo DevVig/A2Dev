@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .storage import read_backlog
 from .roles import UXRole, EngRole
@@ -15,6 +16,9 @@ from .trace import generate_trace
 from .shard import shard_story, update_story_status
 from .gate import gate_story
 from .mcp import RefAdapter, SemgrepAdapter, GitleaksAdapter
+from .core import get_mode_flags, get_perf_flags
+from .core.cache import SmartCache
+import hashlib
 from .storage import write_backlog
 from .board import write_board, update_story_fields
 from .journal import log_story_event
@@ -36,8 +40,40 @@ class Orchestrator:
         self.sec = SecurityRole()
         self.devops = DevOpsRole()
         self.data = DataRole()
+        # Perf + cache flags
+        self._mode_flags = get_mode_flags()
+        self._perf_flags = get_perf_flags()
+        self._cache_enabled = str(self._perf_flags.get("cache", "on")).lower() == "on"
+        self._cache = SmartCache(ttl_minutes=int(self._perf_flags.get("ttl_minutes", 60))) if self._cache_enabled else None
 
-    def prepare_story(self, story_id: int, also_scaffold: bool = False) -> dict:
+    # Caching helpers (text-based)
+    def _hash_files(self, paths: list[str]) -> str:
+        h = hashlib.sha256()
+        for p in paths:
+            try:
+                h.update(Path(p).read_bytes())
+            except Exception:
+                h.update(f"MISSING:{p}".encode())
+        return h.hexdigest()
+
+    def _cache_key(self, name: str, story_id: int, deps: list[str] | None = None) -> str:
+        parts = [
+            "story",
+            str(story_id),
+            name,
+            f"mode={self._mode_flags.get('a2dev_mode','on')}",
+            f"intel={int(self._mode_flags.get('intelligence_enabled', False))}",
+        ]
+        if deps:
+            parts.append(self._hash_files(deps))
+        return "|".join(parts)
+
+    def _maybe_cache_text(self, key: str, gen_fn) -> str:
+        if not self._cache:
+            return gen_fn()
+        return self._cache.get_or_generate(key, gen_fn)
+
+    def prepare_story(self, story_id: int, also_scaffold: bool = False, targets: set[str] | None = None) -> dict:
         backlog = read_backlog()
         if not backlog:
             raise SystemExit("No backlog found. Run plan first.")
@@ -50,9 +86,11 @@ class Orchestrator:
         existing: list[str] = []
         agents_used: list[str] = []
 
-        def ensure(path: str, make: Callable[[], None], agent: str | None = None):
+        def ensure(path: str, make: Callable[[], None], agent: str | None = None, key: str | None = None):
             if Path(path).exists():
                 existing.append(path)
+                return
+            if targets is not None and key is not None and key not in targets:
                 return
             make()
             created.append(path)
@@ -64,54 +102,72 @@ class Orchestrator:
         if not ref.index_exists():
             ref.build_index()
 
-        # Order: UX → Arch → NFRs → Deep Plan → QA → Security → DevOps → Release/Observability → Data → Trace → Shard
-        ensure(f"docs/ux/story-{story_id}.md", lambda: self._gen_ux(story_id, backlog), agent="UX")
-        ensure(
-            f"docs/architecture/ADR-story-{story_id}.md",
-            lambda: self._gen_arch(story_id, backlog),
-            agent="Architecture",
-        )
-        # NFRs (explicit per-story doc)
-        ensure(
-            f"docs/architecture/nfrs/story-{story_id}.md",
-            lambda: self.arch.write_nfrs(story_id),
-            agent="Architecture",
-        )
-        ensure(f"docs/planning/story-{story_id}.md", lambda: self._gen_plan(story_id, backlog), agent="Planning")
-        ensure(f"docs/qa/plans/story-{story_id}.md", lambda: self._gen_qa(story_id, backlog), agent="QA")
+        # Order: (Phase 1 parallel where safe) UX, Arch, NFRs, DevOps, Data, Hypothesis, A11y → (Phase 2 sequential) Plan, QA, Threat → (Phase 3) Release/Observability, Trace, Shard
+        # Phase 1: prepare independent artifacts in parallel if enabled
+        phase1: list[tuple[str, Callable[[], None], str | None, str]] = [
+            (f"docs/ux/story-{story_id}.md", lambda: self._gen_ux(story_id, backlog), "UX", "ux"),
+            (f"docs/architecture/ADR-story-{story_id}.md", lambda: self._gen_arch(story_id, backlog), "Architecture", "arch"),
+            (f"docs/architecture/nfrs/story-{story_id}.md", lambda: self.arch.write_nfrs(story_id), "Architecture", "nfrs"),
+            (f"docs/devops/story-{story_id}.md", lambda: self._gen_devops(story_id, backlog), "DevOps", "devops"),
+            (f"docs/data/analytics/story-{story_id}.md", lambda: self._gen_data(story_id, backlog), "Data", "data"),
+            (f"docs/analyst/hypothesis/story-{story_id}.md", lambda: self._write_hypothesis(story_id, backlog), "Analyst", "hypothesis"),
+            (f"docs/ux/a11y/story-{story_id}.md", lambda: self.ux.write_a11y_checklist(story_id), "UX", "a11y"),
+        ]
+
+        do_parallel = str(self._perf_flags.get("parallel", "auto")).lower() in {"on", "auto"}
+        to_submit: list[tuple[str, Callable[[], None], str | None, str]] = []
+        for path, fn, ag, key in phase1:
+            p = Path(path)
+            if p.exists():
+                existing.append(path)
+                continue
+            if targets is not None and key not in targets:
+                continue
+            if do_parallel:
+                to_submit.append((path, fn, ag, key))
+            else:
+                fn(); created.append(path); agents_used.append(ag) if ag else None
+
+        if to_submit:
+            max_workers = self._perf_flags.get("max_workers") or None
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futs = {pool.submit(fn): (path, ag) for path, fn, ag, _ in to_submit}
+                for fut in as_completed(futs):
+                    path, ag = futs[fut]
+                    try:
+                        fut.result()
+                        created.append(path)
+                        if ag:
+                            agents_used.append(ag)
+                    except Exception:
+                        # Record as existing miss to avoid hard fail; issues will surface at gate
+                        pass
+        ensure(f"docs/planning/story-{story_id}.md", lambda: self._gen_plan(story_id, backlog), agent="Planning", key="plan")
+        ensure(f"docs/qa/plans/story-{story_id}.md", lambda: self._gen_qa(story_id, backlog), agent="QA", key="qa")
         ensure(
             f"docs/security/threats/story-{story_id}.md",
             lambda: self._gen_threat(story_id, backlog),
             agent="Security",
+            key="security",
         )
-        ensure(f"docs/devops/story-{story_id}.md", lambda: self._gen_devops(story_id, backlog), agent="DevOps")
         ensure(
             f"docs/devops/release-plans/story-{story_id}.md",
             lambda: self.devops.write_release_plan(story_id),
             agent="DevOps",
+            key="release",
         )
         ensure(
             f"docs/devops/observability/story-{story_id}.md",
             lambda: self.devops.write_observability(story_id),
             agent="DevOps",
+            key="observability",
         )
-        ensure(
-            f"docs/data/analytics/story-{story_id}.md",
-            lambda: self._gen_data(story_id, backlog),
-            agent="Data",
-        )
-        # Analyst hypothesis (experiment framing)
-        ensure(
-            f"docs/analyst/hypothesis/story-{story_id}.md",
-            lambda: self._write_hypothesis(story_id, backlog),
-            agent="Analyst",
-        )
-        ensure(f"docs/qa/trace/story-{story_id}.md", lambda: generate_trace(backlog, story_id), agent="QA")
+        ensure(f"docs/qa/trace/story-{story_id}.md", lambda: generate_trace(backlog, story_id), agent="QA", key="trace")
 
         # Supplemental artifacts
         try:
             # Always include a11y checklist for UI stories (low-cost)
-            ensure(f"docs/ux/a11y/story-{story_id}.md", lambda: self.ux.write_a11y_checklist(story_id), agent="UX")
+            ensure(f"docs/ux/a11y/story-{story_id}.md", lambda: self.ux.write_a11y_checklist(story_id), agent="UX", key="a11y")
         except Exception:
             pass
         # Risk-based additional docs
@@ -126,25 +182,26 @@ class Orchestrator:
             except Exception:
                 pass
 
-        # Optional static analysis (Semgrep) summary per story
-        semgrep = SemgrepAdapter()
-        sem_out = semgrep.scan(config=str(Path('.a2dev/semgrep/rules.yml')) if Path('.a2dev/semgrep/rules.yml').exists() else 'auto')
-        if sem_out and sem_out.get("status") not in {"skipped", "error"}:
-            out_dir = Path("docs/security/semgrep")
-            out_dir.mkdir(parents=True, exist_ok=True)
-            (out_dir / f"story-{story_id}.json").write_text(__import__("json").dumps(sem_out, indent=2))
-            created.append(str(out_dir / f"story-{story_id}.json"))
-            agents_used.append("Security")
-        # Secrets scan
-        leaks = GitleaksAdapter().scan()
-        if leaks and leaks.get("status") not in {"skipped", "error"}:
-            out_dir = Path("docs/security/secrets")
-            out_dir.mkdir(parents=True, exist_ok=True)
-            (out_dir / f"story-{story_id}.json").write_text(__import__("json").dumps(leaks, indent=2))
-            created.append(str(out_dir / f"story-{story_id}.json"))
-            agents_used.append("Security")
+        # Optional static analysis (Semgrep, Gitleaks) — honor A2Dev mode; run concurrently
+        flags = get_mode_flags()
+        if str(flags.get("a2dev_mode", "on")).lower() != "off":
+            scans = {}
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                scans[pool.submit(SemgrepAdapter().scan, config=str(Path('.a2dev/semgrep/rules.yml')) if Path('.a2dev/semgrep/rules.yml').exists() else 'auto')] = ("semgrep", "docs/security/semgrep", f"story-{story_id}.json")
+                scans[pool.submit(GitleaksAdapter().scan)] = ("gitleaks", "docs/security/secrets", f"story-{story_id}.json")
+                for fut in as_completed(scans):
+                    kind, dirpath, filename = scans[fut]
+                    try:
+                        out = fut.result()
+                    except Exception:
+                        out = None
+                    if out and out.get("status") not in {"skipped", "error"}:
+                        out_dir = Path(dirpath); out_dir.mkdir(parents=True, exist_ok=True)
+                        (out_dir / filename).write_text(__import__("json").dumps(out, indent=2))
+                        created.append(str(out_dir / filename))
+                        agents_used.append("Security")
 
-        ensure(f"docs/stories/story-{story_id}.md", lambda: shard_story(backlog, story_id), agent="PM")
+        ensure(f"docs/stories/story-{story_id}.md", lambda: shard_story(backlog, story_id), agent="PM", key="shard")
         # Create QA readiness marker when gate passes
         if Path(f"docs/qa/readiness/story-{story_id}.md").exists() is False:
             try:
@@ -238,37 +295,92 @@ Updated: {_dt.utcnow().isoformat()}Z
         write_ux_doc(doc)
 
     def _gen_arch(self, story_id: int, backlog):
-        text = self.arch.adr_for_story(backlog, story_id)
+        key = self._cache_key(
+            "arch",
+            story_id,
+            deps=[
+                f"docs/ux/story-{story_id}.md",
+                "docs/backlog.json",
+                "a2a/roles/architecture.py",
+                ".a2dev/templates/architecture/ADR.md",
+            ],
+        )
+        text = self._maybe_cache_text(key, lambda: self.arch.adr_for_story(backlog, story_id))
         out_dir = Path("docs/architecture")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"ADR-story-{story_id}.md").write_text(text)
 
     def _gen_plan(self, story_id: int, backlog):
-        text = self.plan.plan_for_story(backlog, story_id)
+        key = self._cache_key(
+            "plan",
+            story_id,
+            deps=[
+                f"docs/architecture/ADR-story-{story_id}.md",
+                "docs/backlog.json",
+                "a2a/roles/planning.py",
+            ],
+        )
+        text = self._maybe_cache_text(key, lambda: self.plan.plan_for_story(backlog, story_id))
         out_dir = Path("docs/planning")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"story-{story_id}.md").write_text(text)
 
     def _gen_qa(self, story_id: int, backlog):
-        text = self.qa.plan_for_story(backlog, story_id)
+        key = self._cache_key(
+            "qa",
+            story_id,
+            deps=[
+                f"docs/planning/story-{story_id}.md",
+                "a2a/roles/qa.py",
+                ".a2dev/templates/qa/plan.md",
+            ],
+        )
+        text = self._maybe_cache_text(key, lambda: self.qa.plan_for_story(backlog, story_id))
         out_dir = Path("docs/qa/plans")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"story-{story_id}.md").write_text(text)
 
     def _gen_threat(self, story_id: int, backlog):
-        text = self.sec.threat_model_for_story(backlog, story_id)
+        key = self._cache_key(
+            "threat",
+            story_id,
+            deps=[
+                f"docs/qa/plans/story-{story_id}.md",
+                "a2a/roles/security.py",
+                ".a2dev/templates/security/threat.md",
+            ],
+        )
+        text = self._maybe_cache_text(key, lambda: self.sec.threat_model_for_story(backlog, story_id))
         out_dir = Path("docs/security/threats")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"story-{story_id}.md").write_text(text)
 
     def _gen_devops(self, story_id: int, backlog):
-        text = self.devops.plan_for_story(backlog, story_id)
+        key = self._cache_key(
+            "devops",
+            story_id,
+            deps=[
+                f"docs/qa/plans/story-{story_id}.md",
+                "a2a/roles/devops.py",
+                ".a2dev/templates/devops/plan.md",
+            ],
+        )
+        text = self._maybe_cache_text(key, lambda: self.devops.plan_for_story(backlog, story_id))
         out_dir = Path("docs/devops")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"story-{story_id}.md").write_text(text)
 
     def _gen_data(self, story_id: int, backlog):
-        text = self.data.analytics_spec_for_story(backlog, story_id)
+        key = self._cache_key(
+            "data",
+            story_id,
+            deps=[
+                f"docs/devops/story-{story_id}.md",
+                "a2a/roles/data.py",
+                ".a2dev/templates/data/analytics.md",
+            ],
+        )
+        text = self._maybe_cache_text(key, lambda: self.data.analytics_spec_for_story(backlog, story_id))
         out_dir = Path("docs/data/analytics")
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"story-{story_id}.md").write_text(text)

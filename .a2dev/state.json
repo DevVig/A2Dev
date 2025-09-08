@@ -5,6 +5,6 @@
   "ux_dir": "docs/ux",
   "features_dir": "features",
   "phase": "develop",
-  "active_role": "analyst",
+  "active_role": "pm",
   "board_path": "docs/status/board.md"
 }

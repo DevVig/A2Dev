@@ -4,6 +4,8 @@ import os
 from typing import Optional
 
 from .models import ModelProfile, select_model
+from .core import get_perf_flags
+from .core.ratelimit import RateLimiter
 
 
 class LLMClient:
@@ -32,6 +34,14 @@ class LLMClient:
             prefer=prefer,
             tier=tier,
         )
+        # Basic provider-specific pacing from perf flags
+        try:
+            perf = get_perf_flags()
+            rps = float(perf.get("rate_per_sec", 5.0))
+            rl = RateLimiter(rate_per_sec=rps)
+            rl.acquire()
+        except Exception:
+            pass
         # NOTE: Replace the mock return with real provider calls as needed.
         # For safety, we keep this as a stub to avoid network calls by default.
         header = f"[model={model.name} provider={model.provider} task={task}]"

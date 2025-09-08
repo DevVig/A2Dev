@@ -1,0 +1,6 @@
+{
+  "max_warm_seconds": 6.0,
+  "min_warm_improvement_ratio": 0.80,
+  "notes": "Initial baseline for story 2; adjust as scenarios evolve."
+}
+

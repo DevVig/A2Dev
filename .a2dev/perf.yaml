@@ -1,0 +1,8 @@
+# Performance configuration (defaults)
+
+parallel: auto   # on|off|auto
+cache: on        # on|off
+ttl_minutes: 60  # cache TTL
+max_workers: 0   # 0 = auto
+rate_per_sec: 5.0 # pacing for provider-bound calls
+set: auto        # auto|minimal|standard|complete

@@ -487,6 +487,12 @@ def _collect_quick_status() -> dict:
             except Exception:
                 leaks = None
     proposals = Path("docs/proposals/proposed-backlog.json").exists()
+    # Mode flags
+    try:
+        from .core import get_mode_flags as _gmf
+        flags = _gmf()
+    except Exception:
+        flags = {"a2dev_mode": "on"}
     return {
         "phase": st.phase,
         "active_role": getattr(st, 'active_role', 'pm'),
@@ -496,6 +502,7 @@ def _collect_quick_status() -> dict:
         "proposals_present": proposals,
         "semgrep": semgrep,
         "secrets_findings": leaks,
+        "mode": flags.get("a2dev_mode"),
     }
 
 
@@ -1041,6 +1048,10 @@ def cmd_prepare_story(story_id: int) -> None:
 def main(argv: List[str] | None = None) -> None:
     parser = argparse.ArgumentParser("a2dev")
     parser.add_argument("--dry-run", action="store_true", help="Print planned writes and skip modifying files")
+    # Global toggles (env overrides supported): see docs/cli/rfc-mode-and-perf-flags.md
+    parser.add_argument("--mode", choices=["on", "off"], help="A2Dev mode toggle (env: A2DEV_MODE)")
+    parser.add_argument("--parallel", choices=["on", "off", "auto"], help="Enable/disable parallel orchestrator (env: A2DEV_PARALLEL)")
+    parser.add_argument("--cache", choices=["on", "off"], help="Enable/disable SmartCache (env: A2DEV_CACHE)")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_plan = sub.add_parser("plan", help="Generate backlog from PRD")
@@ -1126,6 +1137,7 @@ def main(argv: List[str] | None = None) -> None:
 
     p_develop = sub.add_parser("develop", help="Run develop-phase prep for story id")
     p_develop.add_argument("id", type=int)
+    p_develop.add_argument("--set", choices=["auto", "minimal", "standard", "complete"], default=None, help="Progressive set to generate")
 
     p_sustain = sub.add_parser("sustain", help="Run sustain-phase checks for story id")
     p_sustain.add_argument("id", type=int)
@@ -1152,6 +1164,14 @@ def main(argv: List[str] | None = None) -> None:
     p_route = sub.add_parser("route", help="Conversational router for @role and *commands")
     p_route.add_argument("text", nargs='+', help="Freeform text like '@analyst assess docs/PRD.md' or '*develop 2'")
 
+    # Mode controls
+    p_mode = sub.add_parser("mode", help="Get or change A2Dev mode")
+    mode_sub = p_mode.add_subparsers(dest="mode_cmd", required=True)
+    mode_sub.add_parser("status", help="Show current mode")
+    mode_set = mode_sub.add_parser("set", help="Set mode on|off")
+    mode_set.add_argument("value", choices=["on", "off"])
+    mode_sub.add_parser("toggle", help="Toggle between on/off")
+
     p_timeline = sub.add_parser("timeline", help="Show timeline for assess or a story")
     p_timeline.add_argument("target", help="'assess' or a story id", type=str)
 
@@ -1161,11 +1181,14 @@ def main(argv: List[str] | None = None) -> None:
     pm_sub = p_pm.add_subparsers(dest="pm_cmd", required=True)
     pm_next = pm_sub.add_parser("next", help="Pick and prepare the next story")
     pm_next.add_argument("--scaffold", action="store_true")
+    pm_next.add_argument("--set", choices=["auto", "minimal", "standard", "complete"], default=None)
     pm_cont = pm_sub.add_parser("continue", help="Continue current story or pick next")
     pm_cont.add_argument("--scaffold", action="store_true")
+    pm_cont.add_argument("--set", choices=["auto", "minimal", "standard", "complete"], default=None)
     pm_story = pm_sub.add_parser("story", help="Prepare a specific story id")
     pm_story.add_argument("id", type=int)
     pm_story.add_argument("--scaffold", action="store_true")
+    pm_story.add_argument("--set", choices=["auto", "minimal", "standard", "complete"], default=None)
 
     p_boot = sub.add_parser("bootstrap", help="Check environment and suggest setup steps")
 
@@ -1218,6 +1241,14 @@ def main(argv: List[str] | None = None) -> None:
     p_smcycle.add_argument("--branch", action="store_true")
 
     args = parser.parse_args(argv)
+
+    # Apply global toggles
+    if getattr(args, "mode", None):
+        os.environ["A2DEV_MODE"] = args.mode
+    if getattr(args, "parallel", None):
+        os.environ["A2DEV_PARALLEL"] = args.parallel
+    if getattr(args, "cache", None):
+        os.environ["A2DEV_CACHE"] = args.cache
 
     # Enable dry-run if requested (monkey-patch core file ops)
     if getattr(args, "dry_run", False):
@@ -1378,9 +1409,26 @@ def main(argv: List[str] | None = None) -> None:
         print(format_status_line(state.phase, "Analyst", ["Analyst", "PM"], [out, "docs/backlog.json", "docs/epics.md"], [args.prd]))
         _print_codex_handoff()
     elif args.cmd == "develop":
-        orch = Orchestrator()
+        try:
+            from .core import get_orchestrator as _get_orch, get_progressive_targets as _gpt
+            orch = _get_orch()
+            cfg_targets = _gpt()
+        except Exception:
+            orch = Orchestrator(); cfg_targets = None
         print(pm_develop_guidance(args.id))
-        result = orch.prepare_story(args.id, also_scaffold=False)
+        targets = None
+        if getattr(args, "set", None):
+            s = args.set
+            if s and s != "auto":
+                if s == "minimal":
+                    targets = {"ux", "shard"}
+                elif s == "standard":
+                    targets = {"ux", "arch", "nfrs", "plan", "qa", "shard"}
+                elif s == "complete":
+                    targets = {"ux", "arch", "nfrs", "plan", "qa", "security", "devops", "release", "observability", "data", "trace", "shard", "a11y", "hypothesis"}
+        if targets is None and cfg_targets:
+            targets = set(cfg_targets)
+        result = orch.prepare_story(args.id, also_scaffold=False, targets=targets)
         print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
         state = read_state()
         print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
@@ -2028,18 +2076,37 @@ def main(argv: List[str] | None = None) -> None:
         print(f"Draft PR written: {pr}")
     elif args.cmd == "pm":
         state = read_state()
-        orch = Orchestrator()
+        try:
+            from .core import get_orchestrator as _get_orch
+            orch = _get_orch()
+        except Exception:
+            orch = Orchestrator()
         backlog = read_backlog()
         if not backlog:
             print("No backlog found; running assess is recommended (analyst).")
             raise SystemExit(1)
-        def run_for(story_id: int, scaffold: bool):
+        def run_for(story_id: int, scaffold: bool, set_arg: str | None):
             print(pm_develop_guidance(story_id))
-            result = orch.prepare_story(story_id, also_scaffold=scaffold)
+            # Determine targets based on set_arg or config
+            targets = None
+            if set_arg and set_arg != "auto":
+                if set_arg == "minimal":
+                    targets = {"ux", "shard"}
+                elif set_arg == "standard":
+                    targets = {"ux", "arch", "nfrs", "plan", "qa", "shard"}
+                elif set_arg == "complete":
+                    targets = {"ux", "arch", "nfrs", "plan", "qa", "security", "devops", "release", "observability", "data", "trace", "shard", "a11y", "hypothesis"}
+            if targets is None:
+                try:
+                    from .core import get_progressive_targets as _gpt
+                    t = _gpt(); targets = set(t) if t else None
+                except Exception:
+                    targets = None
+            result = orch.prepare_story(story_id, also_scaffold=scaffold, targets=targets)
             print(pm_gate_feedback(result.get("gate", False), result.get("issues", [])))
             print(format_status_line(state.phase, "PM", result.get("agents", []), result.get("artifacts", {}).get("created", []), result.get("referenced", []), gate=("PASS" if result.get("gate") else "FAIL")))
         if args.pm_cmd == "story":
-            run_for(args.id, args.scaffold)
+            run_for(args.id, args.scaffold, getattr(args, "set", None))
         else:
             # continue or next
             sid = state.current_story_id
@@ -2050,7 +2117,7 @@ def main(argv: List[str] | None = None) -> None:
                 if not next_story:
                     raise SystemExit("No available stories found.")
                 sid = next_story.id
-            run_for(sid, getattr(args, 'scaffold', False))
+            run_for(sid, getattr(args, 'scaffold', False), getattr(args, "set", None))
     elif args.cmd == "bootstrap":
         # Environment checks
         missing = []
@@ -2087,6 +2154,24 @@ def main(argv: List[str] | None = None) -> None:
             print(f"Plan not found: {path}. Generate it first (story-proposals gen/refine or pm-sprints).")
     elif args.cmd == "route":
         text = " ".join(args.text)
+        # Quick toggle: typing '@a2D' or 'A2D' flips mode regardless of current state
+        _t = text.strip()
+        if _t.upper() == "A2D" or _t.lower() == "@a2d":
+            try:
+                from .core import toggle_mode as _toggle
+                newv = _toggle()
+                print(f"A2Dev mode toggled: {newv.upper()}")
+            except Exception as e:
+                print(f"Failed to toggle A2Dev mode: {e}")
+            return
+        # Honor A2Dev mode: when off, routing is disabled for a clean Codex experience
+        try:
+            from .core import get_mode_flags as _gmf_route
+            if str(_gmf_route().get("a2dev_mode", "on")).lower() == "off":
+                print("A2Dev mode is OFF — routing disabled. Interact with Codex directly; type '@a2D' to toggle ON.")
+                return
+        except Exception:
+            pass
         route = parse_route(text)
         if not route:
             raise SystemExit("Could not parse route. Try '@analyst assess docs/PRD.md' or '*develop 2'.")

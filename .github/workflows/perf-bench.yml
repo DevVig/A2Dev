@@ -1,0 +1,31 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        story: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install tools (semgrep, gitleaks)
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y gitleaks ripgrep universal-ctags || true
+          python3 -m pip install --upgrade pip
+          python3 -m pip install semgrep || true
+      - name: Run benchmark and enforce baseline (story ${{ matrix.story }})
+        env:
+          A2DEV_MODE: off
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python3 scripts/bench_ci.py ${{ matrix.story }} --json-out bench-${{ matrix.story }}.json

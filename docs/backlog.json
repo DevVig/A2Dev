@@ -37,10 +37,10 @@
           "priority": "should",
           "dependencies": [],
           "risks": [],
-          "phase": null,
-          "owner": null,
-          "next_owner": null,
-          "gate": null
+          "phase": "develop",
+          "owner": "PM",
+          "next_owner": "Analyst/PM",
+          "gate": "FAIL"
         }
       ]
     },

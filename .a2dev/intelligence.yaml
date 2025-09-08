@@ -1,0 +1,17 @@
+enabled: false
+
+roles:
+  analyst:
+    enhanced: true
+    persona: analytical
+    workflows:
+      - elicitation
+      - brainstorming
+  pm:
+    enhanced: false
+
+settings:
+  caching:
+    enabled: true
+    ttl_minutes: 60
+
